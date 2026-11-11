@@ -9,6 +9,9 @@ const initialSnapshot: DrivingSnapshot = {
   damage: 0,
   speed: 0,
   ended: false,
+  mapX: 0.16,
+  mapY: 0.18,
+  district: 'ফার্মগেট',
 };
 
 const initialInput: DrivingInput = {
