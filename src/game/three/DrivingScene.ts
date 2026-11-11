@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { STARTER_ROAD_GRAPH, type RoadEdge, type RoadGraph } from '../world/roadGraph';
+import { STARTER_ROAD_GRAPH, type RoadGraph } from '../world/roadGraph';
 import { getAvailableRoads, getDirectedGeometry, type DirectedRoad, type Point2D } from '../world/roadNavigation';
 
 export type DrivingSnapshot = {
@@ -40,7 +40,6 @@ export class DrivingScene {
   private mapPoint: Point2D = { x: 0.16, y: 0.18 };
   private district = 'ফার্মগেট';
   private junctionCooldown = 0;
-  private steeringIntent = 0;
   private roadMaterials: THREE.MeshStandardMaterial[] = [];
 
   constructor(host: HTMLElement, onHud: (snapshot: DrivingSnapshot) => void) {
@@ -168,7 +167,7 @@ export class DrivingScene {
       }
     }
     const station=this.makeChargingStation(); const stationNode=this.graph.nodes.find(n=>n.id==='shahbagh-central')!;
-    station.position.copy(this.worldPoint(stationNode)); station.position.x+=9; this.scene.add(station); this.chargingStations.push(station);
+    station.position.copy(this.worldPoint(stationNode)); station.position.x+=3.5; this.scene.add(station); this.chargingStations.push(station);
   }
   private makeChargingStation() {
     const group=new THREE.Group();
@@ -210,7 +209,7 @@ export class DrivingScene {
     const side=new THREE.Vector3(pose.tangent.z,0,-pose.tangent.x);
     const steer=(this.input.right?1:0)-(this.input.left?1:0);
     this.player.position.addScaledVector(side,steer*0.7);
-    this.mapPoint={x:THREE.MathUtils.lerp(this.currentRoad.points[0].x,this.currentRoad.points[this.currentRoad.points.length-1].x,this.progress),y:THREE.MathUtils.lerp(this.currentRoad.points[0].y,this.currentRoad.points[this.currentRoad.points.length-1].y,this.progress)};
+    this.mapPoint={x:THREE.MathUtils.clamp(pose.position.x/TUNING.mapScale+0.5,0,1),y:THREE.MathUtils.clamp(pose.position.z/TUNING.mapScale+0.5,0,1)};
     const node=this.graph.nodes.find(n=>n.id===this.currentRoad.road.to);if(node?.district)this.district=node.district==='farmgate'?'ফার্মগেট':node.district==='shahbagh'?'শাহবাগ':'ধানমন্ডি';
     const behind=pose.tangent.clone().multiplyScalar(-11);const cameraTarget=pose.position.clone().add(new THREE.Vector3(0,1.2,0));
     const desired=pose.position.clone().add(behind).add(new THREE.Vector3(0,6.2,0));
