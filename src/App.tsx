@@ -19,7 +19,6 @@ class RoadScene extends Phaser.Scene {
   private area = 'ফার্মগেট';
   private hud?: (s: Snapshot) => void;
   private lastHud = 0;
-  private lane = 0;
   private charging = false;
 
   constructor(onHud: (s: Snapshot) => void) { super('road'); this.hud = onHud; }
@@ -81,8 +80,6 @@ class RoadScene extends Phaser.Scene {
 
   private horn() {
     if (this.ended) return;
-    const tone = this.sound.add(''); // no bundled music or remote audio in prototype
-    tone.destroy();
     this.cameras.main.flash(60, 255, 244, 180, false);
   }
 
