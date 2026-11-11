@@ -228,7 +228,7 @@ Do not silently promote prototype tuning values to final game balance.
 
 ## 12. Current 3D prototype status and known gaps
 
-The current Three.js vertical slice includes a perspective chase camera, procedural 3D rickshaw, traffic vehicles, road, roadside buildings/trees, touch/keyboard controls, basic collision/damage, speed, distance, score, battery HUD, and start/Game Over screens.
+The current Three.js prototype now renders the starter connected road graph as 3D road ribbons, follows a graph edge in a third-person chase camera, chooses a legal outgoing edge at junctions, displays a persistent Bengali minimap driven by the same graph coordinates, and places basic landmark props. It also retains procedural rickshaw/traffic meshes, touch/keyboard controls, provisional collision/damage, speed, distance, score, battery HUD, and start/Game Over screens.
 
 It is not the completed game. Outstanding work:
 - Replace the straight prototype corridor with the full connected 3D road graph.
