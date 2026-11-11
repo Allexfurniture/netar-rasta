@@ -1,39 +1,15 @@
 import * as THREE from 'three';
+import { STARTER_ROAD_GRAPH, type RoadEdge, type RoadGraph } from '../world/roadGraph';
+import { getAvailableRoads, getDirectedGeometry, type DirectedRoad, type Point2D } from '../world/roadNavigation';
 
 export type DrivingSnapshot = {
-  distance: number;
-  score: number;
-  battery: number;
-  damage: number;
-  speed: number;
-  ended: boolean;
+  distance: number; score: number; battery: number; damage: number; speed: number; ended: boolean;
+  mapX: number; mapY: number; district: string;
 };
-
-export type DrivingInput = {
-  left: boolean;
-  right: boolean;
-  forward: boolean;
-  reverse: boolean;
-  horn: boolean;
-};
-
-// Temporary prototype tuning only. These values are not approved final game balance.
-const PROTOTYPE = {
-  baseSpeed: 19,
-  maxSpeed: 39,
-  accelerationPerSecond: 0.48,
-  batteryDrainPerSecond: 0.34,
-  collisionDamage: 18,
-  playerSteerSpeed: 8.5,
-  roadHalfWidth: 7.2,
-};
-
-type TrafficActor = {
-  group: THREE.Group;
-  speed: number;
-  lane: number;
-  hit: boolean;
-};
+export type DrivingInput = { left: boolean; right: boolean; forward: boolean; reverse: boolean; horn: boolean };
+const TUNING = { baseSpeed: 12, maxSpeed: 24, acceleration: 0.22, drain: 0.22, collisionDamage: 18, mapScale: 150, roadWidthScale: 150 };
+type TrafficActor = { mesh: THREE.Group; road: DirectedRoad; progress: number; speed: number; hit: boolean };
+type RoadRuntime = { road: DirectedRoad; points: Point2D[]; lengths: number[]; total: number };
 
 export class DrivingScene {
   private renderer: THREE.WebGLRenderer;
@@ -42,7 +18,6 @@ export class DrivingScene {
   private clock = new THREE.Clock();
   private player = new THREE.Group();
   private traffic: TrafficActor[] = [];
-  private buildings: THREE.Group[] = [];
   private input: DrivingInput = { left: false, right: false, forward: false, reverse: false, horn: false };
   private animationFrame = 0;
   private elapsed = 0;
@@ -50,400 +25,241 @@ export class DrivingScene {
   private score = 0;
   private battery = 100;
   private damage = 0;
-  private speed = PROTOTYPE.baseSpeed;
+  private speed = TUNING.baseSpeed;
   private ended = false;
   private lastHudAt = 0;
   private onHud: (snapshot: DrivingSnapshot) => void;
   private host: HTMLElement;
   private disposed = false;
-  private roadMarkers: THREE.Mesh[] = [];
-  private chargingStation: THREE.Group;
-  private hornLight: THREE.PointLight;
+  private chargingStations: THREE.Group[] = [];
+  private hornLight!: THREE.PointLight;
+  private graph: RoadGraph = STARTER_ROAD_GRAPH;
+  private roads: RoadRuntime[] = [];
+  private currentRoad!: RoadRuntime;
+  private progress = 0;
+  private mapPoint: Point2D = { x: 0.16, y: 0.18 };
+  private district = 'ফার্মগেট';
+  private junctionCooldown = 0;
+  private steeringIntent = 0;
+  private roadMaterials: THREE.MeshStandardMaterial[] = [];
 
   constructor(host: HTMLElement, onHud: (snapshot: DrivingSnapshot) => void) {
-    this.host = host;
-    this.onHud = onHud;
+    this.host = host; this.onHud = onHud;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.setClearColor(0x9bc9d7);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace; this.renderer.setClearColor(0x9bc9d7);
     this.host.appendChild(this.renderer.domElement);
-
     this.scene.background = new THREE.Color(0x9bc9d7);
-    this.scene.fog = new THREE.Fog(0x9bc9d7, 75, 220);
-    this.camera.position.set(0, 5.2, 10.5);
-    this.camera.lookAt(0, 1.1, -7);
-
-    this.addLighting();
-    this.addCityEnvironment();
-    this.addRoad();
-    this.addRickshaw();
-    this.addTraffic();
-    this.chargingStation = this.makeChargingStation();
-    this.chargingStation.position.set(-8.2, 0, -35);
-    this.scene.add(this.chargingStation);
-    this.hornLight = new THREE.PointLight(0xffd76a, 0, 8);
-    this.hornLight.position.set(0, 2.3, -1.3);
-    this.player.add(this.hornLight);
-
-    this.resize();
-    window.addEventListener('resize', this.resize);
-    this.animationFrame = window.requestAnimationFrame(this.animate);
+    this.scene.fog = new THREE.Fog(0x9bc9d7, 90, 280);
+    this.camera.position.set(-48, 20, -27);
+    this.addLighting(); this.addWorldGround(); this.buildRoadNetwork(); this.addCityProps(); this.addRickshaw(); this.addTraffic();
+    this.currentRoad = this.roads.find((r) => r.road.edge.id === 'farmgate-crossing' && !r.road.reversed)!;
+    this.progress = 0.02; this.updatePlayerPose(0);
+    this.hornLight = new THREE.PointLight(0xffd76a, 0, 8); this.hornLight.position.set(0, 2.3, -1.3); this.player.add(this.hornLight);
+    this.resize(); window.addEventListener('resize', this.resize); this.animationFrame = window.requestAnimationFrame(this.animate);
   }
 
-  setInput(key: keyof DrivingInput, down: boolean) {
-    this.input[key] = down;
-  }
+  setInput(key: keyof DrivingInput, down: boolean) { this.input[key] = down; }
 
+  private worldPoint(p: Point2D): THREE.Vector3 {
+    return new THREE.Vector3((p.x - 0.5) * TUNING.mapScale, 0, (p.y - 0.5) * TUNING.mapScale);
+  }
   private addLighting() {
-    const hemi = new THREE.HemisphereLight(0xe7f5ff, 0x52604c, 2.1);
-    this.scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xfff1d5, 2.5);
-    sun.position.set(-22, 34, 18);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -35;
-    sun.shadow.camera.right = 35;
-    sun.shadow.camera.top = 35;
-    sun.shadow.camera.bottom = -35;
-    this.scene.add(sun);
+    this.scene.add(new THREE.HemisphereLight(0xe7f5ff, 0x52604c, 2));
+    const sun = new THREE.DirectionalLight(0xfff1d5, 2.4); sun.position.set(-60, 90, 50); sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -110; sun.shadow.camera.right = 110;
+    sun.shadow.camera.top = 110; sun.shadow.camera.bottom = -110; this.scene.add(sun);
   }
-
-  private addCityEnvironment() {
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(260, 300),
-      new THREE.MeshStandardMaterial({ color: 0x71956d, roughness: 1 }),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.set(0, -0.14, -95);
-    ground.receiveShadow = true;
-    this.scene.add(ground);
-
-    const random = (seed: number) => {
-      const value = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-      return value - Math.floor(value);
-    };
-
-    for (let side = -1; side <= 1; side += 2) {
-      for (let index = 0; index < 18; index += 1) {
-        const height = 5 + random(index + side * 31) * 18;
-        const width = 4.5 + random(index + side * 71) * 5;
-        const depth = 5 + random(index + side * 97) * 6;
-        const group = new THREE.Group();
-        const material = new THREE.MeshStandardMaterial({
-          color: [0xd9c7a8, 0xb7c6bf, 0xd5d8d1, 0xc6b7a2][index % 4],
-          roughness: 0.92,
+  private addWorldGround() {
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshStandardMaterial({ color: 0x78966d, roughness: 1 }));
+    ground.rotation.x = -Math.PI / 2; ground.position.y = -0.2; ground.receiveShadow = true; this.scene.add(ground);
+  }
+  private makeRoadRuntime(road: DirectedRoad): RoadRuntime {
+    const points = getDirectedGeometry(road);
+    const lengths: number[] = []; let total = 0;
+    for (let i = 1; i < points.length; i++) { const len = Math.hypot(points[i].x - points[i-1].x, points[i].y - points[i-1].y); lengths.push(len); total += len; }
+    return { road, points, lengths, total };
+  }
+  private sample(runtime: RoadRuntime, amount: number): { position: THREE.Vector3; tangent: THREE.Vector3 } {
+    const target = THREE.MathUtils.clamp(amount, 0, 1) * runtime.total;
+    let remaining = target;
+    for (let i = 0; i < runtime.lengths.length; i++) {
+      const len = runtime.lengths[i];
+      if (remaining <= len || i === runtime.lengths.length - 1) {
+        const a = runtime.points[i], b = runtime.points[i+1], t = len === 0 ? 0 : remaining / len;
+        const p = { x: THREE.MathUtils.lerp(a.x,b.x,t), y: THREE.MathUtils.lerp(a.y,b.y,t) };
+        const tangent = this.worldPoint(b).sub(this.worldPoint(a)).normalize();
+        return { position: this.worldPoint(p), tangent };
+      }
+      remaining -= len;
+    }
+    const last = runtime.points[runtime.points.length - 1];
+    return { position: this.worldPoint(last), tangent: new THREE.Vector3(0,0,1) };
+  }
+  private buildRoadNetwork() {
+    const asphalt = new THREE.MeshStandardMaterial({ color: 0x343b3d, roughness: 0.96 });
+    const shoulder = new THREE.MeshStandardMaterial({ color: 0xb6b1a1, roughness: 1 });
+    const marking = new THREE.MeshStandardMaterial({ color: 0xf3e5a5, emissive: 0x292516 });
+    for (const edge of this.graph.edges) {
+      const directed: DirectedRoad = { edge, from: edge.from, to: edge.to, reversed: false };
+      const runtime = this.makeRoadRuntime(directed); this.roads.push(runtime);
+      const verts: number[] = []; const indices: number[] = [];
+      const half = edge.width * TUNING.roadWidthScale * 0.5;
+      for (let i = 0; i < runtime.points.length; i++) {
+        const p = this.worldPoint(runtime.points[i]);
+        const before = this.worldPoint(runtime.points[Math.max(0, i-1)]);
+        const after = this.worldPoint(runtime.points[Math.min(runtime.points.length-1, i+1)]);
+        const tangent = after.sub(before).normalize(); const normal = new THREE.Vector3(-tangent.z,0,tangent.x);
+        const left = p.clone().addScaledVector(normal, half), right = p.clone().addScaledVector(normal, -half);
+        verts.push(left.x,0.015,left.z,right.x,0.015,right.z);
+        if (i > 0) { const n=i*2; indices.push(n-2,n-1,n,n-1,n+1,n); }
+      }
+      const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position',new THREE.Float32BufferAttribute(verts,3)); geometry.setIndex(indices); geometry.computeVertexNormals();
+      const mesh = new THREE.Mesh(geometry,asphalt); mesh.receiveShadow=true; this.scene.add(mesh);
+      this.roadMaterials.push(asphalt);
+      // Thin edge strips make road boundaries readable without creating extra navigable space.
+      for (const side of [-1,1]) {
+        const points: THREE.Vector3[] = runtime.points.map((_,i) => {
+          const p=this.worldPoint(runtime.points[i]); const a=this.worldPoint(runtime.points[Math.max(0,i-1)]); const b=this.worldPoint(runtime.points[Math.min(runtime.points.length-1,i+1)]);
+          const tangent=b.sub(a).normalize(); return p.add(new THREE.Vector3(-tangent.z,0,tangent.x).multiplyScalar(half*side));
         });
-        const building = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
-        building.position.y = height / 2;
-        building.castShadow = true;
-        building.receiveShadow = true;
-        group.add(building);
-
-        const floors = Math.max(2, Math.floor(height / 2.4));
-        for (let floor = 0; floor < floors; floor += 1) {
-          for (let column = 0; column < 2; column += 1) {
-            const windowMesh = new THREE.Mesh(
-              new THREE.BoxGeometry(0.72, 0.82, 0.08),
-              new THREE.MeshStandardMaterial({ color: 0x56727a, roughness: 0.45, metalness: 0.12 }),
-            );
-            windowMesh.position.set((column - 0.5) * width * 0.42, 1.4 + floor * 2.25, depth / 2 + 0.05);
-            group.add(windowMesh);
-          }
-        }
-
-        group.position.set(side * (13 + random(index + 12) * 9), 0, -index * 12 - 10);
-        this.scene.add(group);
-        this.buildings.push(group);
+        const line = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),Math.max(8,points.length*8),0.09,5,false),shoulder);
+        line.position.y=0.06; this.scene.add(line);
+      }
+      // Dashed centre line.
+      const curvePoints = runtime.points.map(p=>this.worldPoint(p)); const curve=new THREE.CatmullRomCurve3(curvePoints);
+      const line = new THREE.Mesh(new THREE.TubeGeometry(curve,Math.max(12,curvePoints.length*12),0.035,4,false),marking);
+      line.position.y=0.045; this.scene.add(line);
+    }
+  }
+  private addCityProps() {
+    const palette=[0xd8c8ad,0xb8c8c0,0xd5d8d1,0xc8b7a2];
+    for (let i=0;i<26;i++) {
+      const x=(i%7)*31-93, z=Math.floor(i/7)*43-78;
+      const nearRoad=this.roads.some(r=>r.points.some(p=>{const q=this.worldPoint(p);return Math.hypot(q.x-x,q.z-z)<13;}));
+      if(nearRoad) continue;
+      const h=8+(i*17%19), w=7+(i*7%6);
+      const building=new THREE.Mesh(new THREE.BoxGeometry(w,h,8),new THREE.MeshStandardMaterial({color:palette[i%palette.length],roughness:0.9}));
+      building.position.set(x,h/2,z);building.castShadow=true;building.receiveShadow=true;this.scene.add(building);
+      for(let f=0;f<Math.floor(h/3);f++) for(let c=-1;c<=1;c++) {
+        const win=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.9,0.08),new THREE.MeshStandardMaterial({color:0x58747a,roughness:0.5}));
+        win.position.set(x+c*2,h/2-h/2+1.7+f*2.5,z+4.05);this.scene.add(win);
       }
     }
-
-    // Trees and roadside poles add scale and a recognizable city-street rhythm.
-    for (let index = 0; index < 22; index += 1) {
-      for (const side of [-1, 1]) {
-        const tree = new THREE.Group();
-        const trunk = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.18, 0.25, 2.3, 7),
-          new THREE.MeshStandardMaterial({ color: 0x76543a }),
-        );
-        trunk.position.y = 1.15;
-        const crown = new THREE.Mesh(
-          new THREE.SphereGeometry(1.35, 9, 7),
-          new THREE.MeshStandardMaterial({ color: index % 2 ? 0x3d8050 : 0x548b51 }),
-        );
-        crown.position.y = 3;
-        tree.add(trunk, crown);
-        tree.position.set(side * 10.2, 0, -index * 10 - 7);
-        this.scene.add(tree);
+    for(const landmark of this.graph.landmarks) {
+      const p=this.worldPoint({x:landmark.x,y:landmark.y});
+      if(landmark.kind==='parliament') {
+        const base=new THREE.Mesh(new THREE.CylinderGeometry(5,6,2,8),new THREE.MeshStandardMaterial({color:0xd8d0bc}));
+        base.position.set(p.x,1,p.z);base.castShadow=true;this.scene.add(base);
+        const dome=new THREE.Mesh(new THREE.ConeGeometry(4,5,8),new THREE.MeshStandardMaterial({color:0xc6b99f}));
+        dome.position.set(p.x,4.5,p.z);this.scene.add(dome);
+      } else {
+        const pole=new THREE.Mesh(new THREE.BoxGeometry(0.18,3,0.18),new THREE.MeshStandardMaterial({color:0x454b49}));
+        pole.position.set(p.x,1.5,p.z);this.scene.add(pole);
+        const prop=new THREE.Mesh(new THREE.BoxGeometry(landmark.kind==='bus-stop'?2.4:0.8,0.65,0.35),new THREE.MeshStandardMaterial({color:landmark.kind==='bus-stop'?0x267b59:0xd34d3d}));
+        prop.position.set(p.x,3,p.z);this.scene.add(prop);
       }
     }
-  }
-
-  private addRoad() {
-    const asphalt = new THREE.Mesh(
-      new THREE.PlaneGeometry(15, 300),
-      new THREE.MeshStandardMaterial({ color: 0x343b3d, roughness: 0.96 }),
-    );
-    asphalt.rotation.x = -Math.PI / 2;
-    asphalt.position.set(0, 0, -95);
-    asphalt.receiveShadow = true;
-    this.scene.add(asphalt);
-
-    const sidewalkMaterial = new THREE.MeshStandardMaterial({ color: 0xaaa99e, roughness: 1 });
-    for (const side of [-1, 1]) {
-      const sidewalk = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.24, 300), sidewalkMaterial);
-      sidewalk.position.set(side * 8.6, 0.02, -95);
-      sidewalk.receiveShadow = true;
-      this.scene.add(sidewalk);
-    }
-
-    const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xf5e7a9, emissive: 0x322d16 });
-    for (const x of [-2.5, 2.5]) {
-      for (let index = 0; index < 22; index += 1) {
-        const marker = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.025, 3.1), lineMaterial);
-        marker.position.set(x, 0.025, -index * 9);
-        this.scene.add(marker);
-        this.roadMarkers.push(marker);
+    for(const node of this.graph.nodes) {
+      if(node.kind==='junction') {
+        const p=this.worldPoint(node); const signal=new THREE.Mesh(new THREE.BoxGeometry(0.35,2.6,0.35),new THREE.MeshStandardMaterial({color:0x454b49}));
+        signal.position.set(p.x+5,1.3,p.z+4);this.scene.add(signal);
       }
     }
-
-    const curbMaterial = new THREE.MeshStandardMaterial({ color: 0xe6dfca });
-    for (const side of [-1, 1]) {
-      const curb = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.25, 300), curbMaterial);
-      curb.position.set(side * 7.55, 0.1, -95);
-      this.scene.add(curb);
-    }
+    const station=this.makeChargingStation(); const stationNode=this.graph.nodes.find(n=>n.id==='shahbagh-central')!;
+    station.position.copy(this.worldPoint(stationNode)); station.position.x+=9; this.scene.add(station); this.chargingStations.push(station);
   }
-
-  private addRickshaw() {
-    const frame = new THREE.MeshStandardMaterial({ color: 0x1b2924, metalness: 0.25, roughness: 0.6 });
-    const green = new THREE.MeshStandardMaterial({ color: 0x15965b, roughness: 0.72 });
-    const yellow = new THREE.MeshStandardMaterial({ color: 0xf2c94c, roughness: 0.55 });
-    const black = new THREE.MeshStandardMaterial({ color: 0x15191a, roughness: 0.9 });
-    const seat = new THREE.MeshStandardMaterial({ color: 0x8d3529, roughness: 0.8 });
-
-    const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.35, 2.2), frame);
-    chassis.position.y = 0.72;
-    chassis.castShadow = true;
-    this.player.add(chassis);
-
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.05, 1.15), green);
-    cabin.position.set(0, 1.28, 0.35);
-    cabin.castShadow = true;
-    this.player.add(cabin);
-
-    const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.16, 1.42), yellow);
-    canopy.position.set(0, 1.92, 0.35);
-    canopy.castShadow = true;
-    this.player.add(canopy);
-
-    const back = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.72, 0.16), seat);
-    back.position.set(0, 1.42, 0.9);
-    this.player.add(back);
-
-    const frontPanel = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.75, 0.16), yellow);
-    frontPanel.position.set(0, 1.08, -0.9);
-    this.player.add(frontPanel);
-
-    const wheelGeometry = new THREE.CylinderGeometry(0.36, 0.36, 0.18, 16);
-    for (const position of [[-0.77, 0.42, -0.72], [0.77, 0.42, -0.72], [0, 0.42, 1.02]] as const) {
-      const wheel = new THREE.Mesh(wheelGeometry, black);
-      wheel.rotation.z = Math.PI / 2;
-      wheel.position.set(position[0], position[1], position[2]);
-      wheel.castShadow = true;
-      this.player.add(wheel);
-    }
-
-    const lamp = new THREE.Mesh(
-      new THREE.SphereGeometry(0.12, 10, 8),
-      new THREE.MeshStandardMaterial({ color: 0xfff2b2, emissive: 0xffcf61, emissiveIntensity: 0.8 }),
-    );
-    lamp.position.set(0, 1.05, -1.02);
-    this.player.add(lamp);
-
-    this.player.position.set(0, 0, 1);
-    this.scene.add(this.player);
-  }
-
-  private makeTrafficVehicle(color: number): THREE.Group {
-    const vehicle = new THREE.Group();
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(1.55, 1.05, 2.7),
-      new THREE.MeshStandardMaterial({ color, roughness: 0.7 }),
-    );
-    body.position.y = 0.85;
-    body.castShadow = true;
-    vehicle.add(body);
-    const roof = new THREE.Mesh(
-      new THREE.BoxGeometry(1.35, 0.68, 1.45),
-      new THREE.MeshStandardMaterial({ color: 0x9eb7bc, roughness: 0.42, metalness: 0.12 }),
-    );
-    roof.position.set(0, 1.58, 0.08);
-    vehicle.add(roof);
-    const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x171a1b });
-    for (const x of [-0.82, 0.82]) {
-      for (const z of [-0.82, 0.82]) {
-        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.27, 0.14, 12), wheelMaterial);
-        wheel.rotation.z = Math.PI / 2;
-        wheel.position.set(x, 0.38, z);
-        vehicle.add(wheel);
-      }
-    }
-    return vehicle;
-  }
-
-  private addTraffic() {
-    const colors = [0xc74d3e, 0xd6a93d, 0x397da5, 0x4b6657, 0x9c9c91, 0x8c5940];
-    for (let index = 0; index < 7; index += 1) {
-      const lane = [-4.8, 0, 4.8][index % 3];
-      const group = this.makeTrafficVehicle(colors[index % colors.length]);
-      group.position.set(lane, 0, -24 - index * 23);
-      this.scene.add(group);
-      this.traffic.push({ group, speed: 8 + (index % 3) * 2.4, lane, hit: false });
-    }
-  }
-
   private makeChargingStation() {
-    const station = new THREE.Group();
-    const base = new THREE.Mesh(
-      new THREE.BoxGeometry(1.5, 1.8, 1.1),
-      new THREE.MeshStandardMaterial({ color: 0x247b57, roughness: 0.65 }),
-    );
-    base.position.y = 0.9;
-    base.castShadow = true;
-    station.add(base);
-    const sign = new THREE.Mesh(
-      new THREE.BoxGeometry(1.1, 0.55, 0.08),
-      new THREE.MeshStandardMaterial({ color: 0xc5ef7d, emissive: 0x426b20, emissiveIntensity: 0.45 }),
-    );
-    sign.position.set(0, 1.35, -0.58);
-    station.add(sign);
-    const label = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.35, 0.1),
-      new THREE.MeshStandardMaterial({ color: 0x183d2d }),
-    );
-    label.position.set(0, 1.35, -0.64);
-    station.add(label);
-    return station;
+    const group=new THREE.Group();
+    const base=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.8,1.2),new THREE.MeshStandardMaterial({color:0x247b57}));
+    base.position.y=0.9;base.castShadow=true;group.add(base);
+    const sign=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.55,0.1),new THREE.MeshStandardMaterial({color:0xc5ef7d,emissive:0x426b20}));
+    sign.position.set(0,1.5,-0.65);group.add(sign);return group;
   }
-
-  private resize = () => {
-    if (this.disposed) return;
-    const width = Math.max(1, this.host.clientWidth);
-    const height = Math.max(1, this.host.clientHeight);
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height, false);
+  private addRickshaw() {
+    const frame=new THREE.MeshStandardMaterial({color:0x1b2924,metalness:0.25,roughness:0.6});
+    const green=new THREE.MeshStandardMaterial({color:0x15965b,roughness:0.72});
+    const yellow=new THREE.MeshStandardMaterial({color:0xf2c94c,roughness:0.55});
+    const black=new THREE.MeshStandardMaterial({color:0x15191a,roughness:0.9});
+    const chassis=new THREE.Mesh(new THREE.BoxGeometry(1.35,0.35,2.2),frame);chassis.position.y=0.72;chassis.castShadow=true;this.player.add(chassis);
+    const cabin=new THREE.Mesh(new THREE.BoxGeometry(1.45,1.05,1.15),green);cabin.position.set(0,1.28,0.35);cabin.castShadow=true;this.player.add(cabin);
+    const canopy=new THREE.Mesh(new THREE.BoxGeometry(1.62,0.16,1.42),yellow);canopy.position.set(0,1.92,0.35);this.player.add(canopy);
+    const wheelGeo=new THREE.CylinderGeometry(0.36,0.36,0.18,16);
+    for(const pos of [[-0.77,0.42,-0.72],[0.77,0.42,-0.72],[0,0.42,1.02]] as const){const wheel=new THREE.Mesh(wheelGeo,black);wheel.rotation.z=Math.PI/2;wheel.position.set(...pos);this.player.add(wheel);}
+    this.player.position.set(0,0,0);this.scene.add(this.player);
+  }
+  private makeTrafficVehicle(color:number) {
+    const group=new THREE.Group();const body=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.1,2.8),new THREE.MeshStandardMaterial({color,roughness:0.75}));
+    body.position.y=0.85;body.castShadow=true;group.add(body);
+    const roof=new THREE.Mesh(new THREE.BoxGeometry(1.35,0.65,1.5),new THREE.MeshStandardMaterial({color:0x9eb7bc}));roof.position.set(0,1.6,0);group.add(roof);return group;
+  }
+  private addTraffic() {
+    const candidates=this.roads.filter(r=>r.road.edge.id!=='farmgate-crossing');
+    const colors=[0xc74d3e,0xd6a93d,0x397da5,0x4b6657,0x9c9c91,0x8c5940];
+    for(let i=0;i<9;i++){
+      const road=candidates[i%candidates.length];const mesh=this.makeTrafficVehicle(colors[i%colors.length]);
+      const progress=0.18+(i%4)*0.19;const sample=this.sample(road,progress);mesh.position.copy(sample.position);mesh.position.y=0;mesh.rotation.y=Math.atan2(sample.tangent.x,sample.tangent.z);this.scene.add(mesh);
+      this.traffic.push({mesh,road,progress,speed:0.025+(i%3)*0.008,hit:false});
+    }
+  }
+  private updatePlayerPose(delta:number) {
+    const pose=this.sample(this.currentRoad,this.progress);this.player.position.copy(pose.position);this.player.position.y=0;
+    const heading=Math.atan2(pose.tangent.x,pose.tangent.z);
+    this.player.rotation.y=heading;
+    const side=new THREE.Vector3(pose.tangent.z,0,-pose.tangent.x);
+    const steer=(this.input.right?1:0)-(this.input.left?1:0);
+    this.player.position.addScaledVector(side,steer*0.7);
+    this.mapPoint={x:THREE.MathUtils.lerp(this.currentRoad.points[0].x,this.currentRoad.points[this.currentRoad.points.length-1].x,this.progress),y:THREE.MathUtils.lerp(this.currentRoad.points[0].y,this.currentRoad.points[this.currentRoad.points.length-1].y,this.progress)};
+    const node=this.graph.nodes.find(n=>n.id===this.currentRoad.road.to);if(node?.district)this.district=node.district==='farmgate'?'ফার্মগেট':node.district==='shahbagh'?'শাহবাগ':'ধানমন্ডি';
+    const behind=pose.tangent.clone().multiplyScalar(-11);const cameraTarget=pose.position.clone().add(new THREE.Vector3(0,1.2,0));
+    const desired=pose.position.clone().add(behind).add(new THREE.Vector3(0,6.2,0));
+    this.camera.position.lerp(desired,1-Math.exp(-3.2*delta));this.camera.lookAt(cameraTarget.clone().add(pose.tangent.clone().multiplyScalar(8)));
+  }
+  private chooseNextRoad() {
+    const nodeId=this.currentRoad.road.to;const choices=getAvailableRoads(this.graph,nodeId).filter(r=>!(r.edge.id===this.currentRoad.road.edge.id&&r.to===this.currentRoad.road.from));
+    if(!choices.length)return;
+    const previous=this.sample(this.currentRoad,1).tangent;
+    const intent=(this.input.right?1:0)-(this.input.left?1:0);
+    const scored=choices.map(choice=>{
+      const runtime=this.makeRoadRuntime(choice);const tangent=this.sample(runtime,0.02).tangent;
+      const cross=previous.x*tangent.z-previous.z*tangent.x;
+      const dot=previous.dot(tangent);
+      return {runtime,score:dot+intent*cross*1.7};
+    }).sort((a,b)=>b.score-a.score);
+    this.currentRoad=scored[0].runtime;this.progress=0;this.junctionCooldown=0.8;
+  }
+  private animate=()=>{
+    if(this.disposed)return;this.animationFrame=window.requestAnimationFrame(this.animate);
+    const delta=Math.min(this.clock.getDelta(),0.04);if(!this.ended)this.update(delta);this.renderer.render(this.scene,this.camera);
   };
-
-  private animate = () => {
-    if (this.disposed) return;
-    this.animationFrame = window.requestAnimationFrame(this.animate);
-    const delta = Math.min(this.clock.getDelta(), 0.04);
-    if (!this.ended) this.update(delta);
-    this.renderer.render(this.scene, this.camera);
-  };
-
-  private update(delta: number) {
-    this.elapsed += delta;
-    const steering = (this.input.right ? 1 : 0) - (this.input.left ? 1 : 0);
-    const throttle = this.input.reverse ? -0.42 : this.input.forward ? 1 : 0.7;
-    this.speed = Math.min(PROTOTYPE.maxSpeed, this.speed + PROTOTYPE.accelerationPerSecond * delta);
-    const signedSpeed = this.speed * throttle * (1 - this.damage * 0.004);
-    const effectiveSpeed = Math.abs(signedSpeed);
-    this.player.position.x = THREE.MathUtils.clamp(
-      this.player.position.x + steering * PROTOTYPE.playerSteerSpeed * delta,
-      -PROTOTYPE.roadHalfWidth + 1.2,
-      PROTOTYPE.roadHalfWidth - 1.2,
-    );
-    this.player.rotation.z = THREE.MathUtils.damp(this.player.rotation.z, -steering * 0.12, 7, delta);
-
-    const forwardDistance = Math.max(0, signedSpeed) * delta;
-    this.distance += forwardDistance * 0.62;
-    this.score += forwardDistance * 0.45;
-    this.battery = Math.max(0, this.battery - PROTOTYPE.batteryDrainPerSecond * (0.45 + effectiveSpeed / PROTOTYPE.maxSpeed) * delta);
-
-    // Move traffic and roadside scenery toward the player to create forward travel.
-    for (const actor of this.traffic) {
-      actor.group.position.z += (signedSpeed - actor.speed) * delta;
-      if (actor.group.position.z > 12) {
-        actor.group.position.z = -150 - Math.random() * 35;
-        actor.lane = [-4.8, 0, 4.8][Math.floor(Math.random() * 3)];
-        actor.group.position.x = actor.lane;
-        actor.hit = false;
-      }
-      const dx = Math.abs(actor.group.position.x - this.player.position.x);
-      const dz = Math.abs(actor.group.position.z - this.player.position.z);
-      if (dx < 1.25 && dz < 2.1 && !actor.hit) {
-        actor.hit = true;
-        this.damage = Math.min(100, this.damage + PROTOTYPE.collisionDamage);
-        actor.group.position.z = -150;
-        this.player.position.x = THREE.MathUtils.clamp(this.player.position.x + (this.player.position.x < actor.group.position.x ? -1.2 : 1.2), -5.5, 5.5);
-      }
+  private update(delta:number) {
+    this.elapsed+=delta;this.junctionCooldown=Math.max(0,this.junctionCooldown-delta);
+    const steering=(this.input.right?1:0)-(this.input.left?1:0);
+    this.speed=Math.min(TUNING.maxSpeed,this.speed+TUNING.acceleration*delta);
+    const signedSpeed=this.speed*(this.input.reverse?-0.38:1)*(1-this.damage*0.004);
+    const forward=Math.max(0,signedSpeed)*delta;this.distance+=forward*0.62;this.score+=forward*0.45;
+    const worldLength=this.currentRoad.total*TUNING.mapScale;
+    this.progress+=signedSpeed*delta/Math.max(1,worldLength);
+    if(this.progress>=1){this.progress=1;this.updatePlayerPose(delta);if(this.junctionCooldown<=0)this.chooseNextRoad();}
+    if(this.progress<0){this.progress=0;}
+    this.battery=Math.max(0,this.battery-TUNING.drain*(0.45+Math.abs(signedSpeed)/TUNING.maxSpeed)*delta);
+    this.updatePlayerPose(delta);
+    for(const actor of this.traffic){
+      actor.progress+=actor.speed*delta;
+      if(actor.progress>1)actor.progress=0;
+      const pose=this.sample(actor.road,actor.progress);actor.mesh.position.copy(pose.position);actor.mesh.position.y=0;
+      actor.mesh.rotation.y=Math.atan2(pose.tangent.x,pose.tangent.z);
+      if(!actor.hit&&actor.mesh.position.distanceTo(this.player.position)<2.2){actor.hit=true;this.damage=Math.min(100,this.damage+TUNING.collisionDamage);}
+      if(actor.mesh.position.distanceTo(this.player.position)>8)actor.hit=false;
     }
-
-    for (const building of this.buildings) {
-      building.position.z += signedSpeed * delta * 0.72;
-      if (building.position.z > 18) building.position.z -= 216;
-    }
-    for (const marker of this.roadMarkers) {
-      marker.position.z += signedSpeed * delta;
-      if (marker.position.z > 12) marker.position.z -= 198;
-    }
-
-    this.chargingStation.position.z += signedSpeed * delta;
-    if (this.chargingStation.position.z > 12) this.chargingStation.position.z = -210;
-    const stationNear = Math.abs(this.chargingStation.position.z - this.player.position.z) < 4
-      && Math.abs(this.chargingStation.position.x - this.player.position.x) < 3;
-    if (stationNear) this.battery = Math.min(100, this.battery + 20 * delta);
-
-    this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.player.position.x * 0.42, 3.5, delta);
-    this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, 5.2, 3, delta);
-    this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, this.player.position.z + 10.5, 4, delta);
-    this.camera.lookAt(this.player.position.x * 0.25, 1.1, this.player.position.z - 7.5);
-
-    this.hornLight.intensity = this.input.horn ? 4.5 : THREE.MathUtils.damp(this.hornLight.intensity, 0, 12, delta);
-
-    if (this.battery <= 0 || this.damage >= 100) this.finish();
-    if (this.elapsed - this.lastHudAt >= 0.1) {
-      this.onHud({
-        distance: Math.floor(this.distance),
-        score: Math.floor(this.score),
-        battery: Math.round(this.battery),
-        damage: Math.round(this.damage),
-        speed: Math.round(effectiveSpeed * 3.6),
-        ended: this.ended,
-      });
-      this.lastHudAt = this.elapsed;
-    }
+    for(const station of this.chargingStations){if(station.position.distanceTo(this.player.position)<4)this.battery=Math.min(100,this.battery+20*delta);}
+    this.hornLight.intensity=this.input.horn?4.5:THREE.MathUtils.damp(this.hornLight.intensity,0,12,delta);
+    if(this.battery<=0||this.damage>=100)this.finish();
+    if(this.elapsed-this.lastHudAt>=0.1){this.publish(false);this.lastHudAt=this.elapsed;}
   }
-
-  private finish() {
-    this.ended = true;
-    this.onHud({
-      distance: Math.floor(this.distance),
-      score: Math.floor(this.score),
-      battery: Math.round(this.battery),
-      damage: Math.round(this.damage),
-      speed: Math.round(this.speed * 3.6),
-      ended: true,
-    });
-  }
-
-  dispose() {
-    this.disposed = true;
-    window.cancelAnimationFrame(this.animationFrame);
-    window.removeEventListener('resize', this.resize);
-    this.scene.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach((material) => material.dispose());
-      }
-    });
-    this.renderer.dispose();
-    this.renderer.domElement.remove();
-  }
+  private publish(ended:boolean){this.onHud({distance:Math.floor(this.distance),score:Math.floor(this.score),battery:Math.round(this.battery),damage:Math.round(this.damage),speed:Math.round(Math.abs(this.speed)*3.6),ended,mapX:this.mapPoint.x,mapY:this.mapPoint.y,district:this.district});}
+  private finish(){this.ended=true;this.publish(true);}
+  private resize=()=>{if(this.disposed)return;const w=Math.max(1,this.host.clientWidth),h=Math.max(1,this.host.clientHeight);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.renderer.setSize(w,h,false);};
+  dispose(){this.disposed=true;window.cancelAnimationFrame(this.animationFrame);window.removeEventListener('resize',this.resize);this.scene.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>m.dispose());}});this.renderer.dispose();this.renderer.domElement.remove();}
 }
