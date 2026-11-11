@@ -205,7 +205,7 @@ export class DrivingScene {
   private updatePlayerPose(delta:number) {
     const pose=this.sample(this.currentRoad,this.progress);this.player.position.copy(pose.position);this.player.position.y=0;
     const heading=Math.atan2(pose.tangent.x,pose.tangent.z);
-    this.player.rotation.y=heading;
+    this.player.rotation.y=heading+Math.PI;
     const side=new THREE.Vector3(pose.tangent.z,0,-pose.tangent.x);
     const steer=(this.input.right?1:0)-(this.input.left?1:0);
     this.player.position.addScaledVector(side,steer*0.7);
