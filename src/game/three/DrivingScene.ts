@@ -82,7 +82,7 @@ export class DrivingScene {
     this.addRickshaw();
     this.addTraffic();
     this.chargingStation = this.makeChargingStation();
-    this.chargingStation.position.set(-9.5, 0, -35);
+    this.chargingStation.position.set(-8.2, 0, -35);
     this.scene.add(this.chargingStation);
     this.hornLight = new THREE.PointLight(0xffd76a, 0, 8);
     this.hornLight.position.set(0, 2.3, -1.3);
@@ -351,7 +351,8 @@ export class DrivingScene {
     const steering = (this.input.right ? 1 : 0) - (this.input.left ? 1 : 0);
     const throttle = this.input.reverse ? -0.42 : this.input.forward ? 1 : 0.7;
     this.speed = Math.min(PROTOTYPE.maxSpeed, this.speed + PROTOTYPE.accelerationPerSecond * delta);
-    const effectiveSpeed = Math.max(0, this.speed * throttle * (1 - this.damage * 0.004));
+    const signedSpeed = this.speed * throttle * (1 - this.damage * 0.004);
+    const effectiveSpeed = Math.abs(signedSpeed);
     this.player.position.x = THREE.MathUtils.clamp(
       this.player.position.x + steering * PROTOTYPE.playerSteerSpeed * delta,
       -PROTOTYPE.roadHalfWidth + 1.2,
@@ -359,14 +360,14 @@ export class DrivingScene {
     );
     this.player.rotation.z = THREE.MathUtils.damp(this.player.rotation.z, -steering * 0.12, 7, delta);
 
-    const forwardDistance = Math.max(0, effectiveSpeed) * delta;
+    const forwardDistance = Math.max(0, signedSpeed) * delta;
     this.distance += forwardDistance * 0.62;
     this.score += forwardDistance * 0.45;
     this.battery = Math.max(0, this.battery - PROTOTYPE.batteryDrainPerSecond * (0.45 + effectiveSpeed / PROTOTYPE.maxSpeed) * delta);
 
     // Move traffic and roadside scenery toward the player to create forward travel.
     for (const actor of this.traffic) {
-      actor.group.position.z += (effectiveSpeed - actor.speed) * delta;
+      actor.group.position.z += (signedSpeed - actor.speed) * delta;
       if (actor.group.position.z > 12) {
         actor.group.position.z = -150 - Math.random() * 35;
         actor.lane = [-4.8, 0, 4.8][Math.floor(Math.random() * 3)];
@@ -384,15 +385,15 @@ export class DrivingScene {
     }
 
     for (const building of this.buildings) {
-      building.position.z += effectiveSpeed * delta * 0.72;
+      building.position.z += signedSpeed * delta * 0.72;
       if (building.position.z > 18) building.position.z -= 216;
     }
     for (const marker of this.roadMarkers) {
-      marker.position.z += effectiveSpeed * delta;
+      marker.position.z += signedSpeed * delta;
       if (marker.position.z > 12) marker.position.z -= 198;
     }
 
-    this.chargingStation.position.z += effectiveSpeed * delta;
+    this.chargingStation.position.z += signedSpeed * delta;
     if (this.chargingStation.position.z > 12) this.chargingStation.position.z = -210;
     const stationNear = Math.abs(this.chargingStation.position.z - this.player.position.z) < 4
       && Math.abs(this.chargingStation.position.x - this.player.position.x) < 3;
