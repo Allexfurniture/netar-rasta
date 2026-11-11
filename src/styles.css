@@ -61,3 +61,17 @@ footer { text-align: center; color: #6f8979; font-size: 10px; padding: 4px 0; }
   .game-frame { min-height: 390px; }
 }
 @media (min-height: 850px) { .game-frame { height: 620px; } }
+
+.minimap {
+  position: absolute; z-index: 2; top: 10px; right: 10px; width: 132px;
+  padding: 7px; border: 1px solid #ffffff55; border-radius: 12px;
+  background: #10251fe8; box-shadow: 0 5px 18px #0005; pointer-events: none;
+}
+.minimap-title { color: #dcebdc; font-size: 10px; text-align: center; margin-bottom: 3px; }
+.minimap svg { display: block; width: 100%; aspect-ratio: 1; overflow: visible; }
+.minimap polyline { fill: none; stroke: #a9b6a6; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.minimap .map-landmark { fill: #e4bd65; stroke: #fff1c8; stroke-width: .8; }
+.minimap .map-player-halo { fill: #b9ed73; opacity: .35; }
+.minimap .map-player { fill: #eaffbd; stroke: #173126; stroke-width: 1.2; }
+.minimap-places { display: flex; justify-content: space-between; gap: 2px; color: #a9c6ad; font-size: 8px; white-space: nowrap; }
+@media (max-width: 380px) { .minimap { width: 112px; top: 8px; right: 8px; } }
