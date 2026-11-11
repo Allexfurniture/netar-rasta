@@ -112,7 +112,7 @@ export class DrivingScene {
         const tangent = after.sub(before).normalize(); const normal = new THREE.Vector3(-tangent.z,0,tangent.x);
         const left = p.clone().addScaledVector(normal, half), right = p.clone().addScaledVector(normal, -half);
         verts.push(left.x,0.015,left.z,right.x,0.015,right.z);
-        if (i > 0) { const n=i*2; indices.push(n-2,n-1,n,n-1,n+1,n); }
+        if (i > 0) { const n=i*2; indices.push(n-2,n,n-1,n-1,n,n+1); }
       }
       const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position',new THREE.Float32BufferAttribute(verts,3)); geometry.setIndex(indices); geometry.computeVertexNormals();
       const mesh = new THREE.Mesh(geometry,asphalt); mesh.receiveShadow=true; this.scene.add(mesh);
