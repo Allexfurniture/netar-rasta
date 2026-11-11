@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { DrivingInput, DrivingSnapshot } from './game/three/DrivingScene';
+import type { DrivingInput, DrivingSnapshot, DrivingScene } from './game/three/DrivingScene';
 
 const initialSnapshot: DrivingSnapshot = {
   distance: 0,
@@ -20,7 +20,7 @@ const initialInput: DrivingInput = {
 
 export default function App() {
   const hostRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<import('./game/three/DrivingScene').DrivingScene | null>(null);
+  const sceneRef = useRef<DrivingScene | null>(null);
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [started, setStarted] = useState(false);
   const [graphicsError, setGraphicsError] = useState(false);
@@ -28,8 +28,8 @@ export default function App() {
   useEffect(() => {
     if (!started || !hostRef.current) return;
     let disposed = false;
-    let scene: import('./game/three/DrivingScene').DrivingScene | null = null;
-    let removeListeners = () => undefined;
+    let scene: DrivingScene | null = null;
+    let removeListeners: () => void = () => {};
 
     void import('./game/three/DrivingScene')
       .then(({ DrivingScene }) => {
