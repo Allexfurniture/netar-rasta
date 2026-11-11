@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DrivingInput, DrivingSnapshot, DrivingScene } from './game/three/DrivingScene';
+import { STARTER_ROAD_GRAPH } from './game/world/roadGraph';
 
 const initialSnapshot: DrivingSnapshot = {
   distance: 0,
@@ -17,6 +18,25 @@ const initialInput: DrivingInput = {
   reverse: false,
   horn: false,
 };
+
+function MiniMap({ x, y }: { x: number; y: number }) {
+  return (
+    <div className="minimap" aria-label="শহরের মিনিম্যাপ">
+      <div className="minimap-title">শহরের মানচিত্র</div>
+      <svg viewBox="0 0 100 100" role="img" aria-label="ফার্মগেট, শাহবাগ ও ধানমন্ডির রাস্তা">
+        {STARTER_ROAD_GRAPH.edges.map((edge) => (
+          <polyline key={edge.id} points={edge.points.map((p) => `${p.x * 100},${p.y * 100}`).join(' ')} />
+        ))}
+        {STARTER_ROAD_GRAPH.landmarks.filter((item) => item.kind === 'parliament').map((item) => (
+          <circle key={item.id} className="map-landmark" cx={item.x * 100} cy={item.y * 100} r="2.5" />
+        ))}
+        <circle className="map-player-halo" cx={x * 100} cy={y * 100} r="5" />
+        <circle className="map-player" cx={x * 100} cy={y * 100} r="2.4" />
+      </svg>
+      <div className="minimap-places"><span>ফার্মগেট</span><span>শাহবাগ</span><span>ধানমন্ডি</span></div>
+    </div>
+  );
+}
 
 export default function App() {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -140,7 +160,7 @@ export default function App() {
 
           <section className="game-frame">
             <div ref={hostRef} className="game-host" />
-            <div className="scene-label">ফার্মগেট · ৩D ড্রাইভিং</div>
+            <div className="scene-label">{snapshot.district} · ৩D ড্রাইভিং</div>\n            <MiniMap x={snapshot.mapX} y={snapshot.mapY} />
             {snapshot.ended && (
               <div className="game-over">
                 <span>খেলা শেষ</span>
