@@ -1,7 +1,7 @@
 {
   "name": "netar-rasta",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,9 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "phaser": "^3.90.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "three": "^0.180.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.8",
