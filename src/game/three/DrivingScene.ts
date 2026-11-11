@@ -8,7 +8,7 @@ export type DrivingSnapshot = {
 };
 export type DrivingInput = { left: boolean; right: boolean; forward: boolean; reverse: boolean; horn: boolean };
 const TUNING = { baseSpeed: 12, maxSpeed: 24, acceleration: 0.22, drain: 0.22, collisionDamage: 18, mapScale: 150, roadWidthScale: 150 };
-type TrafficActor = { mesh: THREE.Group; road: DirectedRoad; progress: number; speed: number; hit: boolean };
+type TrafficActor = { mesh: THREE.Group; road: RoadRuntime; progress: number; speed: number; hit: boolean };
 type RoadRuntime = { road: DirectedRoad; points: Point2D[]; lengths: number[]; total: number };
 
 export class DrivingScene {
@@ -185,7 +185,7 @@ export class DrivingScene {
     const cabin=new THREE.Mesh(new THREE.BoxGeometry(1.45,1.05,1.15),green);cabin.position.set(0,1.28,0.35);cabin.castShadow=true;this.player.add(cabin);
     const canopy=new THREE.Mesh(new THREE.BoxGeometry(1.62,0.16,1.42),yellow);canopy.position.set(0,1.92,0.35);this.player.add(canopy);
     const wheelGeo=new THREE.CylinderGeometry(0.36,0.36,0.18,16);
-    for(const pos of [[-0.77,0.42,-0.72],[0.77,0.42,-0.72],[0,0.42,1.02]] as const){const wheel=new THREE.Mesh(wheelGeo,black);wheel.rotation.z=Math.PI/2;wheel.position.set(...pos);this.player.add(wheel);}
+    for(const pos of [[-0.77,0.42,-0.72],[0.77,0.42,-0.72],[0,0.42,1.02]] as const){const wheel=new THREE.Mesh(wheelGeo,black);wheel.rotation.z=Math.PI/2;wheel.position.set(pos[0],pos[1],pos[2]);this.player.add(wheel);}
     this.player.position.set(0,0,0);this.scene.add(this.player);
   }
   private makeTrafficVehicle(color:number) {
@@ -234,7 +234,6 @@ export class DrivingScene {
   };
   private update(delta:number) {
     this.elapsed+=delta;this.junctionCooldown=Math.max(0,this.junctionCooldown-delta);
-    const steering=(this.input.right?1:0)-(this.input.left?1:0);
     this.speed=Math.min(TUNING.maxSpeed,this.speed+TUNING.acceleration*delta);
     const signedSpeed=this.speed*(this.input.reverse?-0.38:1)*(1-this.damage*0.004);
     const forward=Math.max(0,signedSpeed)*delta;this.distance+=forward*0.62;this.score+=forward*0.45;
