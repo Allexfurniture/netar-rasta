@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DrivingScene, type DrivingInput, type DrivingSnapshot } from './game/three/DrivingScene';
+import type { DrivingInput, DrivingSnapshot } from './game/three/DrivingScene';
 
 const initialSnapshot: DrivingSnapshot = {
   distance: 0,
@@ -20,54 +20,74 @@ const initialInput: DrivingInput = {
 
 export default function App() {
   const hostRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<DrivingScene | null>(null);
+  const sceneRef = useRef<import('./game/three/DrivingScene').DrivingScene | null>(null);
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [started, setStarted] = useState(false);
   const [graphicsError, setGraphicsError] = useState(false);
 
   useEffect(() => {
     if (!started || !hostRef.current) return;
-    try {
-      const scene = new DrivingScene(hostRef.current, setSnapshot);
-      sceneRef.current = scene;
-      const keyMap: Record<string, keyof DrivingInput> = {
-        ArrowLeft: 'left',
-        KeyA: 'left',
-        ArrowRight: 'right',
-        KeyD: 'right',
-        ArrowUp: 'forward',
-        KeyW: 'forward',
-        ArrowDown: 'reverse',
-        KeyS: 'reverse',
-        Space: 'horn',
-      };
-      const onKeyDown = (event: KeyboardEvent) => {
-        const key = keyMap[event.code];
-        if (!key) return;
-        event.preventDefault();
-        scene.setInput(key, true);
-      };
-      const onKeyUp = (event: KeyboardEvent) => {
-        const key = keyMap[event.code];
-        if (key) scene.setInput(key, false);
-      };
-      const releaseAll = () => {
-        (Object.keys(initialInput) as Array<keyof DrivingInput>).forEach((key) => scene.setInput(key, false));
-      };
-      window.addEventListener('keydown', onKeyDown, { passive: false });
-      window.addEventListener('keyup', onKeyUp);
-      window.addEventListener('blur', releaseAll);
-      return () => {
-        window.removeEventListener('keydown', onKeyDown);
-        window.removeEventListener('keyup', onKeyUp);
-        window.removeEventListener('blur', releaseAll);
-        scene.dispose();
-        if (sceneRef.current === scene) sceneRef.current = null;
-      };
-    } catch {
-      setGraphicsError(true);
-      setStarted(false);
-    }
+    let disposed = false;
+    let scene: import('./game/three/DrivingScene').DrivingScene | null = null;
+    let removeListeners = () => undefined;
+
+    void import('./game/three/DrivingScene')
+      .then(({ DrivingScene }) => {
+        if (disposed || !hostRef.current) return;
+        try {
+          const activeScene = new DrivingScene(hostRef.current, setSnapshot);
+          scene = activeScene;
+          sceneRef.current = activeScene;
+          const keyMap: Record<string, keyof DrivingInput> = {
+            ArrowLeft: 'left',
+            KeyA: 'left',
+            ArrowRight: 'right',
+            KeyD: 'right',
+            ArrowUp: 'forward',
+            KeyW: 'forward',
+            ArrowDown: 'reverse',
+            KeyS: 'reverse',
+            Space: 'horn',
+          };
+          const onKeyDown = (event: KeyboardEvent) => {
+            const key = keyMap[event.code];
+            if (!key) return;
+            event.preventDefault();
+            activeScene.setInput(key, true);
+          };
+          const onKeyUp = (event: KeyboardEvent) => {
+            const key = keyMap[event.code];
+            if (key) activeScene.setInput(key, false);
+          };
+          const releaseAll = () => {
+            (Object.keys(initialInput) as Array<keyof DrivingInput>).forEach((key) => activeScene.setInput(key, false));
+          };
+          window.addEventListener('keydown', onKeyDown, { passive: false });
+          window.addEventListener('keyup', onKeyUp);
+          window.addEventListener('blur', releaseAll);
+          removeListeners = () => {
+            window.removeEventListener('keydown', onKeyDown);
+            window.removeEventListener('keyup', onKeyUp);
+            window.removeEventListener('blur', releaseAll);
+          };
+        } catch {
+          setGraphicsError(true);
+          setStarted(false);
+        }
+      })
+      .catch(() => {
+        if (!disposed) {
+          setGraphicsError(true);
+          setStarted(false);
+        }
+      });
+
+    return () => {
+      disposed = true;
+      removeListeners();
+      scene?.dispose();
+      if (sceneRef.current === scene) sceneRef.current = null;
+    };
   }, [started]);
 
   const startGame = useCallback(() => {
