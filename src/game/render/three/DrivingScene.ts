@@ -3,9 +3,10 @@ import { GameLoop } from '../../core/GameLoop';
 import { InputController, type InputSnapshot } from '../../input/InputController';
 import { advanceRoad, createRoadState, type RoadAdvance, type RoadState } from '../../world/RoadGraph';
 
-export type SceneStatus = { speed: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; currentDistrict: string; roadX: number };
+export type SceneStatus = { speed: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; caught: boolean; pursuitActive: boolean; currentDistrict: string; roadX: number };
 type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
 type TrafficAgent = { kind: TrafficKind; group: THREE.Group; state: RoadAdvance; cruiseSpeed: number; currentSpeed: number; routeBias: -1 | 0 | 1; lane: number; halfWidth: number; halfLength: number; overlapping: boolean };
+type AnimatedPerson = { group: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftArm: THREE.Group; rightArm: THREE.Group; phase: number; stride: number };
 
 export class DrivingScene {
   private readonly scene = new THREE.Scene();
@@ -17,7 +18,14 @@ export class DrivingScene {
   private readonly wheels: THREE.Mesh[] = [];
   private readonly movingWorld: THREE.Object3D[] = [];
   private readonly trafficAgents: TrafficAgent[] = [];
+  private readonly sidewalkPeople: AnimatedPerson[] = [];
+  private readonly chasers: AnimatedPerson[] = [];
   private collisionShake = 0;
+  private pursuitActive = false;
+  private caught = false;
+  private escaped = false;
+  private escapeTime = 0;
+  private pursuitElapsed = 0;
   private readonly clockLight = new THREE.PointLight(0xffd28a, 0, 8);
   private readonly finishLine = new THREE.Group();
   private distance = 0;
@@ -295,6 +303,7 @@ export class DrivingScene {
 
     this.buildStreetTraffic();
     this.buildSidewalkCrowd();
+    this.buildPursuitCrowd();
     this.buildRickshaw();
     this.buildFinishLine();
     this.player.position.set(0, 0, 0);
@@ -456,31 +465,99 @@ export class DrivingScene {
     });
   }
 
+  private createAnimatedPerson(shirtColor: number, phase: number, stride: number): AnimatedPerson {
+    const group = new THREE.Group();
+    const shirt = this.material(shirtColor);
+    const skin = this.material(0xb97951);
+    const legs = this.material(0x343a3a);
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.55, 4, 7), shirt);
+    body.position.y = 1.05; group.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 10), skin);
+    head.position.set(0, 1.55, -0.02); group.add(head);
+    const makeLimb = (x: number, y: number, length: number, material: THREE.Material) => {
+      const pivot = new THREE.Group(); pivot.position.set(x, y, 0);
+      const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.075, length, 7), material);
+      limb.position.y = -length / 2; pivot.add(limb); group.add(pivot); return pivot;
+    };
+    const leftLeg = makeLimb(-0.12, 0.67, 0.58, legs);
+    const rightLeg = makeLimb(0.12, 0.67, 0.58, legs);
+    const leftArm = makeLimb(-0.28, 1.28, 0.58, skin);
+    const rightArm = makeLimb(0.28, 1.28, 0.58, skin);
+    leftArm.rotation.z = -0.18; rightArm.rotation.z = 0.18;
+    return { group, leftLeg, rightLeg, leftArm, rightArm, phase, stride };
+  }
+
+  private animatePerson(person: AnimatedPerson, dt: number, running = false) {
+    person.phase += dt * person.stride;
+    const swing = Math.sin(person.phase) * (running ? 0.72 : 0.34);
+    person.leftLeg.rotation.x = swing;
+    person.rightLeg.rotation.x = -swing;
+    person.leftArm.rotation.x = -swing * 0.72;
+    person.rightArm.rotation.x = swing * 0.72;
+    person.group.position.y = Math.abs(Math.sin(person.phase * 2)) * (running ? 0.07 : 0.025);
+  }
+
   private buildSidewalkCrowd() {
-    for(let i=0;i<12;i++){
-      const side=i%2===0?-1:1;
-      const x=side*(9.0+(i%3)*0.45);
-      const z=-24-i*18;
-      const person=new THREE.Group();
-      const shirt=this.material([0x2e8069,0xc65a49,0x426f9b,0xd39c43][i%4]);
-      const skin=this.material(0xb97951);
-      const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.22,0.55,4,7),shirt);
-      body.position.y=1.05; person.add(body);
-      const head=new THREE.Mesh(new THREE.SphereGeometry(0.19,12,10),skin);
-      head.position.set(0,1.55,-0.02); person.add(head);
-      const legMat=this.material(0x343a3a);
-      for(const lx of [-0.12,0.12]){
-        const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.065,0.075,0.58,7),legMat);
-        leg.position.set(lx,0.38,0); person.add(leg);
-      }
-      const armMat=skin;
-      for(const ax of [-0.28,0.28]){
-        const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.07,0.58,7),armMat);
-        arm.position.set(ax,1.05,-0.02); arm.rotation.z=ax<0?-0.22:0.22; person.add(arm);
-      }
-      person.position.set(x,0,z);
-      this.scene.add(person);
-      this.movingWorld.push(person);
+    for (let i = 0; i < 12; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const x = side * (9.0 + (i % 3) * 0.45);
+      const person = this.createAnimatedPerson([0x2e8069, 0xc65a49, 0x426f9b, 0xd39c43][i % 4], i * 0.8, 2.4 + (i % 3) * 0.25);
+      person.group.position.set(x, 0, -24 - i * 18);
+      this.scene.add(person.group); this.movingWorld.push(person.group); this.sidewalkPeople.push(person);
+    }
+  }
+
+  private buildPursuitCrowd() {
+    // Seven pursuers are a prototype tuning choice inside the approved 5–10 range.
+    for (let i = 0; i < 7; i++) {
+      const person = this.createAnimatedPerson([0xb84237, 0x7d3546, 0xd06a38, 0x5b4141][i % 4], i * 0.65, 10.5 + (i % 3) * 0.35);
+      person.group.scale.setScalar(1.02);
+      person.group.visible = false;
+      this.scene.add(person.group);
+      this.chasers.push(person);
+    }
+  }
+
+  private updatePursuit(dt: number) {
+    // Trigger and movement values below are explicitly provisional for playtesting.
+    if (!this.pursuitActive && !this.escaped && this.distance >= 280) {
+      this.pursuitActive = true;
+      this.pursuitElapsed = 0;
+      this.chasers.forEach((person, i) => {
+        const state = advanceRoad(createRoadState(), Math.max(0, this.distance - 24 - i * 2.8), i % 3 === 0 ? -1 : i % 3 === 1 ? 0 : 1);
+        person.group.position.set(state.x + (i % 2 ? 1.0 : -1.0), 0, this.distance - state.distance);
+        person.group.visible = true;
+      });
+    }
+    if (!this.pursuitActive || this.caught) return;
+    this.pursuitElapsed += dt;
+    const chaserSpeed = 15.2; // provisional world units/second
+    let nearestGap = Number.POSITIVE_INFINITY;
+    this.chasers.forEach((person, i) => {
+      const previousZ = person.group.position.z;
+      const gapToPlayer = previousZ;
+      const advance = Math.max(0, chaserSpeed * dt);
+      const newGap = Math.max(0, gapToPlayer - advance + Math.max(0, this.speed - chaserSpeed) * dt * 0.18);
+      person.group.position.z = newGap;
+      person.group.position.x = THREE.MathUtils.damp(person.group.position.x, this.player.position.x + (i % 2 ? 0.75 : -0.75), 1.8, dt);
+      person.group.rotation.y = Math.PI;
+      this.animatePerson(person, dt, true);
+      nearestGap = Math.min(nearestGap, newGap);
+    });
+    if (nearestGap <= 2.35) {
+      this.caught = true;
+      this.speed = 0;
+      this.input.clear();
+      this.chasers.forEach(person => { person.group.rotation.y = 0; });
+      return;
+    }
+    // A sustained high-speed gap creates a clean escape; BOOST is the intended test route.
+    if (this.speed >= chaserSpeed + 2.2 && nearestGap >= 34) this.escapeTime += dt;
+    else this.escapeTime = Math.max(0, this.escapeTime - dt * 0.5);
+    if (this.escapeTime >= 4.0) {
+      this.escaped = true;
+      this.pursuitActive = false;
+      this.chasers.forEach(person => { person.group.visible = false; });
     }
   }
 
@@ -612,6 +689,8 @@ export class DrivingScene {
     this.currentDistrict = this.distance < 112 ? 'ফার্মগেট' : this.distance < 202 ? 'শাহবাগ' : 'ধানমন্ডি';
     this.player.position.x = THREE.MathUtils.damp(this.player.position.x, this.roadX, 8, dt);
     this.updateTraffic(dt);
+    this.sidewalkPeople.forEach(person => this.animatePerson(person, dt));
+    this.updatePursuit(dt);
     this.finishLine.position.z += travel;
     this.movingWorld.forEach(object => {
       object.position.z += travel;
@@ -623,12 +702,16 @@ export class DrivingScene {
     const shake = this.collisionShake > 0 ? Math.sin(this.wheelRotation * 3.2) * this.collisionShake * 0.22 : 0;
     this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.player.position.x * 0.36, 2.2, dt) + shake;
     this.camera.lookAt(this.player.position.x * 0.18, 1.15, -5);
+    if (this.caught) {
+      this.onStatus({ speed: 0, steering: 0, hornFlash: false, boostActive: false, distance: Math.floor(this.distance), finished: false, caught: true, pursuitActive: true, currentDistrict: this.currentDistrict, roadX: this.roadX });
+      return;
+    }
     if (this.distance >= this.prototypeRouteLength) {
       this.finished = true;
       this.speed = 0;
       this.input.clear();
     }
-    this.onStatus({ speed: Math.round(this.speed * 8), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished, currentDistrict: this.currentDistrict, roadX: this.roadX });
+    this.onStatus({ speed: Math.round(this.speed * 8), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX });
   }
 
   private resize() {
