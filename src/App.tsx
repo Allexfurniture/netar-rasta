@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'rea
 import { DrivingScene, type CameraMode, type SceneStatus } from './game/render/three/DrivingScene';
 import { ROAD_EDGES, ROAD_NODES } from './game/world/RoadGraph';
 
-type ViewState = 'ready' | 'running' | 'paused' | 'victory' | 'gameover' | 'error';
+type ViewState = 'ready' | 'loading' | 'running' | 'paused' | 'victory' | 'gameover' | 'error';
 
 export default function App() {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -10,7 +10,8 @@ export default function App() {
   const [view, setView] = useState<ViewState>('ready');
   const [cameraMode, setCameraMode] = useState<CameraMode>('chase');
   const [sceneMounted, setSceneMounted] = useState(false);
-  const [status, setStatus] = useState<SceneStatus>({ speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0, battery: 100, charging: false, damage: 0, batteryEmpty: false, totalDamageCost: 0, collisionCount: 0, damageBreakdown: { car: { hits: 0, cost: 0 }, bus: { hits: 0, cost: 0 }, motorcycle: { hits: 0, cost: 0 }, cng: { hits: 0, cost: 0 }, auto: { hits: 0, cost: 0 }, rickshaw: { hits: 0, cost: 0 }, pedestrian: { hits: 0, cost: 0 } } });
+  const INITIAL_STATUS: SceneStatus = { speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0, battery: 100, charging: false, damage: 0, batteryEmpty: false, totalDamageCost: 0, collisionCount: 0, damageBreakdown: { car: { hits: 0, cost: 0 }, bus: { hits: 0, cost: 0 }, motorcycle: { hits: 0, cost: 0 }, cng: { hits: 0, cost: 0 }, auto: { hits: 0, cost: 0 }, rickshaw: { hits: 0, cost: 0 }, pedestrian: { hits: 0, cost: 0 } } };
+  const [status, setStatus] = useState<SceneStatus>(INITIAL_STATUS);
   const [error, setError] = useState('');
 
   const cameraOrder: CameraMode[] = ['chase', 'elevated', 'close', 'side'];
@@ -37,6 +38,7 @@ export default function App() {
           lastPublish = now;
         }
       });
+      setView('running');
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'WebGL চালু করা যায়নি';
       setError(message);
@@ -73,7 +75,17 @@ export default function App() {
     setCameraMode('chase');
     sceneRef.current?.setCameraMode('chase');
     setSceneMounted(true);
-    setView('running');
+    setView('loading');
+  }, []);
+
+  const resetGame = useCallback(() => {
+    sceneRef.current?.dispose();
+    sceneRef.current = null;
+    setSceneMounted(false);
+    setCameraMode('chase');
+    setStatus({ ...INITIAL_STATUS, damageBreakdown: { car: { hits: 0, cost: 0 }, bus: { hits: 0, cost: 0 }, motorcycle: { hits: 0, cost: 0 }, cng: { hits: 0, cost: 0 }, auto: { hits: 0, cost: 0 }, rickshaw: { hits: 0, cost: 0 }, pedestrian: { hits: 0, cost: 0 } } });
+    setError('');
+    setView('ready');
   }, []);
 
   const setTouch = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'brake' | 'boost', pressed: boolean) => {
@@ -120,9 +132,20 @@ export default function App() {
             <div className="cover-icon" aria-hidden="true">🛺</div>
             <p className="cover-kicker">THIRD-PERSON DRIVING</p>
             <h1>নেতার রাস্তা</h1>
-            <p>ঢাকার পথে আপনার 3D ড্রাইভিং যাত্রা শুরু করুন।</p>
+            <p>ঢাকার পথে আপনার নিজের ব্যাটারিচালিত অটো নিয়ে ফিনিশ লাইনের দিকে এগিয়ে যান।</p>
+            <div className="ready-objective"><strong>আপনার লক্ষ্য</strong><span>ট্রাফিক এড়িয়ে ১,২০০ মিটার দূরের ফিনিশ লাইনে পৌঁছান। ব্যাটারি কমে গেলে চার্জিং স্টেশনে যান।</span></div>
+            <div className="ready-controls"><span>← → দিক নিয়ন্ত্রণ</span><span>↑ চলুন · X ব্রেক</span><span>↓ পিছনে · Shift টান</span><span>Space হর্ন · Esc বিরতি</span></div>
             <button className="primary-button" onClick={start}>ড্রাইভিং শুরু করুন <span>↗</span></button>
             <span className="cover-hint">কীবোর্ড: ← → দিক · ↑ চলুন · X ব্রেক · ↓ পিছনে · Shift টান · Space হর্ন</span>
+          </div>
+        )}
+        {view === 'loading' && (
+          <div className="scene-cover modal-cover loading-cover" role="status" aria-live="polite">
+            <div className="cover-icon" aria-hidden="true">🛺</div>
+            <p className="cover-kicker">CITY ENGINE STARTING</p>
+            <h2>রাস্তা তৈরি হচ্ছে…</h2>
+            <p>ঢাকার পথে আপনার যাত্রার প্রস্তুতি চলছে।</p>
+            <div className="loading-track"><i /></div>
           </div>
         )}
         {view === 'gameover' && (
@@ -133,7 +156,7 @@ export default function App() {
             <p>{status.batteryEmpty ? 'চার্জিং স্টেশনে না পৌঁছানোর কারণে গাড়ি থেমে গেছে।' : 'পেছনের দল আপনাকে ধরে ফেলেছে। পরেরবার BOOST ব্যবহার করে দূরত্ব বাড়ান।'}</p>
             <div className="finish-stats"><div><span>স্কোর</span><strong>{status.score.toLocaleString('bn-BD')}</strong></div><div><span>দূরত্ব</span><strong>{status.distance.toLocaleString('bn-BD')} মি</strong></div><div><span>সর্বোচ্চ গতি</span><strong>{status.maxSpeed.toLocaleString('bn-BD')} km/h</strong></div><div><span>সময়</span><strong>{Math.floor(status.elapsedSeconds / 60).toLocaleString('bn-BD')}:{String(status.elapsedSeconds % 60).padStart(2,'0')}</strong></div></div>
             {damageSummary}
-            <button className="primary-button" onClick={() => { sceneRef.current?.dispose(); sceneRef.current = null; setSceneMounted(false); setStatus({ speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0, battery: 100, charging: false, damage: 0, batteryEmpty: false, totalDamageCost: 0, collisionCount: 0, damageBreakdown: { car: { hits: 0, cost: 0 }, bus: { hits: 0, cost: 0 }, motorcycle: { hits: 0, cost: 0 }, cng: { hits: 0, cost: 0 }, auto: { hits: 0, cost: 0 }, rickshaw: { hits: 0, cost: 0 }, pedestrian: { hits: 0, cost: 0 } } }); setView('ready'); }}>আবার খেলুন</button>
+            <button className="primary-button" onClick={resetGame}>আবার খেলুন</button>
           </div>
         )}
         {view === 'victory' && (
@@ -144,15 +167,20 @@ export default function App() {
             <p>আপনার Route Run সম্পন্ন হয়েছে।</p>
             <div className="finish-stats"><div><span>মোট স্কোর</span><strong>{status.score.toLocaleString('bn-BD')}</strong></div><div><span>দূরত্ব</span><strong>{status.distance.toLocaleString('bn-BD')} মি</strong></div><div><span>সর্বোচ্চ গতি</span><strong>{status.maxSpeed.toLocaleString('bn-BD')} km/h</strong></div><div><span>সময়</span><strong>{Math.floor(status.elapsedSeconds / 60).toLocaleString('bn-BD')}:{String(status.elapsedSeconds % 60).padStart(2,'0')}</strong></div></div>
             {damageSummary}
-            <button className="primary-button" onClick={() => { sceneRef.current?.dispose(); sceneRef.current = null; setSceneMounted(false); setView('ready'); }}>আবার খেলুন</button>
+            <button className="primary-button" onClick={resetGame}>আবার খেলুন</button>
           </div>
         )}
         {view === 'paused' && (
-          <div className="scene-cover modal-cover">
+          <div className="scene-cover modal-cover pause-cover">
+            <div className="cover-icon" aria-hidden="true">⏸️</div>
             <p className="cover-kicker">PAUSED</p>
             <h2>বিরতি</h2>
-            <p>সিমুলেশন সাময়িকভাবে থামানো হয়েছে।</p>
-            <button className="primary-button" onClick={() => setView('running')}>আবার চালু করুন</button>
+            <p>গেম থামানো আছে। প্রস্তুত হলে আবার চালু করুন।</p>
+            <div className="pause-actions">
+              <button className="primary-button" onClick={() => setView('running')}>▶ আবার চালু করুন</button>
+              <button className="secondary-button" onClick={resetGame}>নতুন করে শুরু</button>
+              <button className="text-button" onClick={resetGame}>হোমে ফিরে যান</button>
+            </div>
           </div>
         )}
         {view === 'error' && (
@@ -160,7 +188,7 @@ export default function App() {
             <p className="cover-kicker">GRAPHICS ERROR</p>
             <h2>3D চালু করা যায়নি</h2>
             <p>{error}</p>
-            <button className="primary-button" onClick={() => setView('ready')}>আবার চেষ্টা করুন</button>
+            <button className="primary-button" onClick={resetGame}>আবার চেষ্টা করুন</button>
           </div>
         )}
       </div>
