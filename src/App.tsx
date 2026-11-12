@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
 import { DrivingScene, type SceneStatus } from './game/render/three/DrivingScene';
 
 type ViewState = 'ready' | 'running' | 'paused' | 'error';
@@ -59,7 +59,7 @@ export default function App() {
   };
 
   const bindHold = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn') => ({
-    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+    onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
       event.currentTarget.setPointerCapture(event.pointerId);
       setTouch(key, true);
     },
