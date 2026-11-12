@@ -3,10 +3,13 @@ import { GameLoop } from '../../core/GameLoop';
 import { InputController, type InputSnapshot } from '../../input/InputController';
 import { advanceRoad, retreatRoad, createRoadState, getRoadPoint, type RoadAdvance, type RoadState } from '../../world/RoadGraph';
 
-export type SceneStatus = { speed: number; maxSpeed: number; score: number; elapsedSeconds: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; caught: boolean; pursuitActive: boolean; currentDistrict: string; roadX: number; battery: number; charging: boolean; damage: number; batteryEmpty: boolean };
+export type DamageCategory = 'car' | 'bus' | 'motorcycle' | 'cng' | 'auto' | 'rickshaw' | 'pedestrian';
+export type DamageCategoryStats = Record<DamageCategory, { hits: number; cost: number }>;
+export type SceneStatus = { speed: number; maxSpeed: number; score: number; elapsedSeconds: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; caught: boolean; pursuitActive: boolean; currentDistrict: string; roadX: number; battery: number; charging: boolean; damage: number; batteryEmpty: boolean; totalDamageCost: number; collisionCount: number; damageBreakdown: DamageCategoryStats };
 type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
-type TrafficAgent = { kind: TrafficKind; group: THREE.Group; state: RoadAdvance; cruiseSpeed: number; currentSpeed: number; routeBias: -1 | 0 | 1; lane: number; halfWidth: number; halfLength: number; overlapping: boolean };
+type TrafficAgent = { kind: TrafficKind; group: THREE.Group; state: RoadAdvance; cruiseSpeed: number; currentSpeed: number; routeBias: -1 | 0 | 1; lane: number; halfWidth: number; halfLength: number; overlapping: boolean; knockedBack: boolean; knockbackVelocity: THREE.Vector3; knockbackTime: number };
 type AnimatedPerson = { group: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftArm: THREE.Group; rightArm: THREE.Group; phase: number; stride: number };
+type PedestrianAgent = AnimatedPerson & { knockedBack: boolean; knockbackVelocity: THREE.Vector3; knockbackTime: number; side: -1 | 1; spawnIndex: number };
 
 export class DrivingScene {
   private readonly scene = new THREE.Scene();
@@ -19,6 +22,7 @@ export class DrivingScene {
   private readonly movingWorld: THREE.Object3D[] = [];
   private readonly trafficAgents: TrafficAgent[] = [];
   private readonly sidewalkPeople: AnimatedPerson[] = [];
+  private readonly pedestrians: PedestrianAgent[] = [];
   private readonly chasers: AnimatedPerson[] = [];
   private readonly chargingStations: Array<{ group: THREE.Group; distance: number }> = [];
   private lateralOffset = 0;
@@ -27,7 +31,16 @@ export class DrivingScene {
   private chargeElapsed = 0;
   private damage = 0;
   private batteryEmpty = false;
-  private collisionCooldown = 0;
+  private totalDamageCost = 0;
+  private collisionCount = 0;
+  private readonly damageBreakdown: DamageCategoryStats = {
+    car: { hits: 0, cost: 0 }, bus: { hits: 0, cost: 0 }, motorcycle: { hits: 0, cost: 0 },
+    cng: { hits: 0, cost: 0 }, auto: { hits: 0, cost: 0 }, rickshaw: { hits: 0, cost: 0 },
+    pedestrian: { hits: 0, cost: 0 },
+  };
+  private readonly collisionValues: Record<DamageCategory, number> = {
+    car: 200, bus: 500, motorcycle: 150, cng: 180, auto: 150, rickshaw: 100, pedestrian: 100,
+  };
   private crashTime = 0;
   private crashRoll = 0;
   private collisionShake = 0;
@@ -483,7 +496,7 @@ export class DrivingScene {
       const size = dimensions[spec.kind];
       const agent: TrafficAgent = {
         kind:spec.kind,group,state,cruiseSpeed:spec.speed,currentSpeed:spec.speed,
-        routeBias:spec.route,lane:spec.lane,halfWidth:size.halfWidth,halfLength:size.halfLength,overlapping:false,
+        routeBias:spec.route,lane:spec.lane,halfWidth:size.halfWidth,halfLength:size.halfLength,overlapping:false,knockedBack:false,knockbackVelocity:new THREE.Vector3(),knockbackTime:0,
       };
       this.trafficAgents.push(agent);
       group.position.set(state.x + spec.lane,0,this.distance - state.distance);
@@ -537,18 +550,34 @@ export class DrivingScene {
     agent.group.position.set(agent.state.x + laneX, 0, this.distance - agent.state.distance + laneZ);
   }
 
+  private recordCollision(kind: DamageCategory) {
+    const cost = this.collisionValues[kind];
+    this.totalDamageCost += cost;
+    this.collisionCount += 1;
+    this.damageBreakdown[kind].hits += 1;
+    this.damageBreakdown[kind].cost += cost;
+  }
+
+  private launchTrafficAgent(agent: TrafficAgent, lateral: number) {
+    agent.knockedBack = true;
+    agent.knockbackTime = 1.35;
+    agent.knockbackVelocity.set((lateral <= 0 ? -1 : 1) * 5.2, 6.4, 2.8);
+    agent.group.rotation.z = (lateral <= 0 ? -1 : 1) * 0.22;
+    agent.group.rotation.x = -0.16;
+    agent.overlapping = true;
+  }
+
   private updateTraffic(dt: number) {
-    // Compute headway against the previous simulation snapshot before advancing agents.
     const targetSpeeds = this.trafficAgents.map(agent => {
+      if (agent.knockedBack) return 0;
       let nearestGap = Number.POSITIVE_INFINITY;
       let leadSpeed = agent.cruiseSpeed;
       for (const other of this.trafficAgents) {
-        if (other === agent) continue;
+        if (other === agent || other.knockedBack) continue;
         const gap = other.state.distance - agent.state.distance;
         const lateralGap = Math.abs(other.state.x + other.lane - agent.state.x - agent.lane);
         if (gap > 0 && gap < nearestGap && lateralGap < agent.halfWidth + other.halfWidth + 0.45) {
-          nearestGap = gap;
-          leadSpeed = other.currentSpeed;
+          nearestGap = gap; leadSpeed = other.currentSpeed;
         }
       }
       if (nearestGap < agent.halfLength + 3.2) {
@@ -559,20 +588,31 @@ export class DrivingScene {
     });
 
     this.trafficAgents.forEach((agent,index) => {
+      if (agent.knockedBack) {
+        agent.knockbackTime -= dt;
+        agent.knockbackVelocity.y -= 12 * dt;
+        agent.group.position.addScaledVector(agent.knockbackVelocity, dt);
+        agent.group.rotation.z += (agent.knockbackVelocity.x >= 0 ? 1 : -1) * dt * 3.8;
+        agent.group.rotation.x += dt * 2.2;
+        if (agent.knockbackTime <= 0) {
+          const spawnDistance = Math.min(this.prototypeRouteLength - 30, this.distance + 150 + index * 11);
+          agent.state = advanceRoad(createRoadState(), spawnDistance, agent.routeBias);
+          agent.currentSpeed = agent.cruiseSpeed;
+          agent.knockedBack = false; agent.overlapping = false;
+          agent.group.rotation.set(0, 0, 0);
+          this.positionTrafficAgent(agent);
+        }
+        return;
+      }
+
       agent.currentSpeed = THREE.MathUtils.damp(agent.currentSpeed,targetSpeeds[index],2.8,dt);
       agent.state = advanceRoad(agent.state,agent.currentSpeed * dt,agent.routeBias);
-
-      // Recycle the pooled agent after it falls well behind, or reaches the route end.
       if (agent.state.distance < this.distance - 52 || agent.state.distance > this.prototypeRouteLength - 18) {
         const spawnDistance = Math.min(this.prototypeRouteLength - 30,this.distance + 170 + index * 13);
         agent.state = advanceRoad(createRoadState(),spawnDistance,agent.routeBias);
-        agent.currentSpeed = agent.cruiseSpeed;
-        agent.overlapping = false;
+        agent.currentSpeed = agent.cruiseSpeed; agent.overlapping = false;
       }
       this.positionTrafficAgent(agent);
-
-      // Test vehicle footprints in the player's local forward/lateral frame.
-      // The road heading is shared closely enough for a stable oriented-rectangle approximation.
       const dx = agent.group.position.x - this.player.position.x;
       const dz = agent.group.position.z;
       const heading = this.player.rotation.y;
@@ -582,17 +622,53 @@ export class DrivingScene {
         && Math.abs(lateral) < 0.98 + agent.halfWidth;
       if (overlaps && !agent.overlapping) {
         agent.overlapping = true;
-        this.collisionShake = 0.42;
-        if (this.collisionCooldown <= 0) {
-          this.collisionCooldown = 1.1;
-          this.crashTime = 0.55;
-          this.crashRoll = lateral <= 0 ? -1 : 1;
-          this.damage = Math.min(100, this.damage + (agent.kind === 'bus' ? 28 : agent.kind === 'car' ? 20 : 12));
-          this.speed *= 0.52;
-          this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.crashRoll * 0.45, -2.65, 2.65);
-        }
+        this.recordCollision(agent.kind === 'bike' ? 'motorcycle' : agent.kind);
+        this.collisionShake = 0.55;
+        this.crashTime = 0.55;
+        this.crashRoll = lateral <= 0 ? -1 : 1;
+        this.damage = Math.min(100, this.damage + (agent.kind === 'bus' ? 28 : agent.kind === 'car' ? 20 : 12));
+        this.speed *= 0.52;
+        this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.crashRoll * 0.45, -2.65, 2.65);
+        this.launchTrafficAgent(agent, lateral);
       } else if (!overlaps) {
         agent.overlapping = false;
+      }
+    });
+  }
+
+  private updatePedestrianCollisions(dt: number) {
+    this.pedestrians.forEach((person) => {
+      if (person.knockedBack) {
+        person.knockbackTime -= dt;
+        person.knockbackVelocity.y -= 12 * dt;
+        person.group.position.addScaledVector(person.knockbackVelocity, dt);
+        person.group.rotation.z += (person.knockbackVelocity.x >= 0 ? 1 : -1) * dt * 4.2;
+        person.group.rotation.x += dt * 2.6;
+        if (person.knockbackTime <= 0) {
+          person.knockedBack = false;
+          person.group.rotation.set(0, 0, 0);
+          person.group.position.set(person.side * (3.0 + (person.spawnIndex % 3) * 0.35), 0, -78 - person.spawnIndex * 2.2);
+          person.phase += Math.PI;
+        }
+        return;
+      }
+      const dx = person.group.position.x - this.player.position.x;
+      const dz = person.group.position.z;
+      const heading = this.player.rotation.y;
+      const longitudinal = dx * -Math.sin(heading) + dz * -Math.cos(heading);
+      const lateral = dx * Math.cos(heading) - dz * Math.sin(heading);
+      if (Math.abs(longitudinal) < 1.72 && Math.abs(lateral) < 1.3) {
+        person.knockedBack = true;
+        person.knockbackTime = 1.2;
+        const direction = lateral <= 0 ? -1 : 1;
+        person.knockbackVelocity.set(direction * 4.8, 6.1, 2.4);
+        person.group.rotation.z = direction * 0.18;
+        this.recordCollision('pedestrian');
+        this.collisionShake = 0.5;
+        this.crashTime = 0.45;
+        this.crashRoll = direction;
+        this.damage = Math.min(100, this.damage + 8);
+        this.speed *= 0.72;
       }
     });
   }
@@ -632,10 +708,11 @@ export class DrivingScene {
   private buildSidewalkCrowd() {
     for (let i = 0; i < 12; i++) {
       const side = i % 2 === 0 ? -1 : 1;
-      const x = side * (9.0 + (i % 3) * 0.45);
       const person = this.createAnimatedPerson([0x2e8069, 0xc65a49, 0x426f9b, 0xd39c43][i % 4], i * 0.8, 2.4 + (i % 3) * 0.25);
-      person.group.position.set(x, 0, -24 - i * 18);
-      this.scene.add(person.group); this.movingWorld.push(person.group); this.sidewalkPeople.push(person);
+      const pedestrian: PedestrianAgent = { ...person, knockedBack: false, knockbackVelocity: new THREE.Vector3(), knockbackTime: 0, side, spawnIndex: i };
+      pedestrian.group.position.set(side * (3.0 + (i % 3) * 0.35), 0, -24 - i * 18);
+      this.scene.add(pedestrian.group); this.movingWorld.push(pedestrian.group);
+      this.sidewalkPeople.push(pedestrian); this.pedestrians.push(pedestrian);
     }
   }
 
@@ -908,7 +985,6 @@ export class DrivingScene {
     this.roadX = roadProgress.x;
     this.currentDistrict = this.distance < 112 ? 'ফার্মগেট' : this.distance < 202 ? 'শাহবাগ' : 'ধানমন্ডি';
     this.player.position.x = THREE.MathUtils.damp(this.player.position.x, this.roadX + this.lateralOffset, 10, dt);
-    this.collisionCooldown = Math.max(0, this.collisionCooldown - dt);
     this.crashTime = Math.max(0, this.crashTime - dt);
     this.updateTraffic(dt);
     this.sidewalkPeople.forEach(person => this.animatePerson(person, dt));
@@ -920,6 +996,7 @@ export class DrivingScene {
       object.position.z += travel;
       if (object.position.z > 14) object.position.z -= 228;
     });
+    this.updatePedestrianCollisions(dt);
     this.hornTime = controls.horn ? 0.24 : Math.max(0, this.hornTime - dt);
     this.clockLight.intensity = this.hornTime > 0 ? 2.5 : 0;
     this.collisionShake = Math.max(0,this.collisionShake - dt);
@@ -927,7 +1004,7 @@ export class DrivingScene {
     this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.player.position.x * 0.36, 2.2, dt) + shake;
     this.camera.lookAt(this.player.position.x * 0.18, 1.15, -5);
     if (this.caught || this.batteryEmpty) {
-      this.onStatus({ speed: 0, maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: 0, hornFlash: false, boostActive: false, distance: Math.floor(this.distance), finished: false, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX, battery: Math.round(this.battery), charging: this.charging, damage: Math.round(this.damage), batteryEmpty: this.batteryEmpty });
+      this.onStatus({ speed: 0, maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: 0, hornFlash: false, boostActive: false, distance: Math.floor(this.distance), finished: false, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX, battery: Math.round(this.battery), charging: this.charging, damage: Math.round(this.damage), batteryEmpty: this.batteryEmpty, totalDamageCost: this.totalDamageCost, collisionCount: this.collisionCount, damageBreakdown: this.damageBreakdown });
       return;
     }
     if (this.distance >= this.prototypeRouteLength) {
