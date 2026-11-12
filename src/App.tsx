@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
 import { DrivingScene, type SceneStatus } from './game/render/three/DrivingScene';
 
-type ViewState = 'ready' | 'running' | 'paused' | 'error';
+type ViewState = 'ready' | 'running' | 'paused' | 'victory' | 'error';
 
 export default function App() {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<DrivingScene | null>(null);
   const [view, setView] = useState<ViewState>('ready');
   const [sceneMounted, setSceneMounted] = useState(false);
-  const [status, setStatus] = useState<SceneStatus>({ speed: 0, steering: 0, hornFlash: false });
+  const [status, setStatus] = useState<SceneStatus>({ speed: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false });
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -19,6 +19,7 @@ export default function App() {
         const now = performance.now();
         if (now - lastPublish > 120) {
           setStatus(next);
+          if (next.finished) setView('victory');
           lastPublish = now;
         }
       });
@@ -35,7 +36,7 @@ export default function App() {
   }, [sceneMounted]);
 
   useEffect(() => {
-    if (view === 'paused') sceneRef.current?.pause();
+    if (view === 'paused' || view === 'victory') sceneRef.current?.pause();
     if (view === 'running') sceneRef.current?.resume();
   }, [view]);
 
@@ -54,11 +55,11 @@ export default function App() {
     setView('running');
   }, []);
 
-  const setTouch = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn', pressed: boolean) => {
+  const setTouch = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn' | 'boost', pressed: boolean) => {
     sceneRef.current?.setTouch(key, pressed);
   };
 
-  const bindHold = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn') => ({
+  const bindHold = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn' | 'boost') => ({
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
       event.currentTarget.setPointerCapture(event.pointerId);
       setTouch(key, true);
@@ -79,6 +80,15 @@ export default function App() {
             <p>ঢাকার পথে আপনার 3D ড্রাইভিং যাত্রা শুরু করুন।</p>
             <button className="primary-button" onClick={start}>ড্রাইভিং শুরু করুন <span>↗</span></button>
             <span className="cover-hint">কীবোর্ড: ← → স্টিয়ারিং · ↑ গতি · ↓ রিভার্স · Space হর্ন</span>
+          </div>
+        )}
+        {view === 'victory' && (
+          <div className="scene-cover modal-cover">
+            <div className="cover-icon" aria-hidden="true">🏁</div>
+            <p className="cover-kicker">ROUTE COMPLETE</p>
+            <h2>অভিনন্দন! ফিনিশ লাইন পার হয়েছেন</h2>
+            <p>আপনার পরীক্ষামূলক Route Run সম্পন্ন হয়েছে।</p>
+            <button className="primary-button" onClick={() => { sceneRef.current?.dispose(); sceneRef.current = null; setSceneMounted(false); setView('ready'); }}>আবার খেলুন</button>
           </div>
         )}
         {view === 'paused' && (
@@ -106,7 +116,7 @@ export default function App() {
         </div>
         <div className="live-status" aria-live="polite">
           <span className="status-dot" />
-          {view === 'running' ? 'চলছে' : view === 'paused' ? 'বিরতি' : 'প্রস্তুত'}
+          {view === 'running' ? 'চলছে' : view === 'paused' ? 'বিরতি' : view === 'victory' ? 'সম্পন্ন' : 'প্রস্তুত'}
         </div>
         {view === 'running' && <button className="pause-button" onClick={() => setView('paused')} aria-label="গেম বিরতি দিন">Ⅱ</button>}
         {view === 'paused' && <button className="pause-button" onClick={() => setView('running')} aria-label="গেম আবার চালু করুন">▶</button>}
@@ -121,8 +131,9 @@ export default function App() {
               <div className="metric-track"><i style={{ width: Math.min(100, status.speed / 180 * 100) + '%' }} /></div>
             </div>
             <div className="hud-card steering-card">
-              <span>স্টিয়ারিং</span>
-              <strong>{status.steering.toFixed(1)}</strong>
+              <span>দূরত্ব</span>
+              <strong>{status.distance}<small> m</small></strong>
+              <div className="metric-track"><i style={{ width: Math.min(100, status.distance / 1200 * 100) + '%' }} /></div>
             </div>
           </section>
 
@@ -131,6 +142,7 @@ export default function App() {
             <span><kbd>↑</kbd> GO</span>
             <span><kbd>↓</kbd> REV</span>
             <span><kbd>Space</kbd> হর্ন</span>
+            <span><kbd>Shift</kbd> BOOST</span>
             <span><kbd>Esc</kbd> বিরতি</span>
           </div>
 
@@ -143,9 +155,10 @@ export default function App() {
               <button className="secondary-control" aria-label="রিভার্স" {...bindHold('reverse')}>REV</button>
               <button className="go-control" aria-label="সামনে চলুন" {...bindHold('accelerate')}>GO</button>
               <button className="secondary-control" aria-label="হর্ন" {...bindHold('horn')}>HORN</button>
+              <button className={'secondary-control boost-control' + (status.boostActive ? ' is-active' : '')} aria-label="বুস্ট" {...bindHold('boost')}>BOOST</button>
             </div>
           </section>
-          <p className="provisional-note">*প্রাথমিক টেস্ট গতি-স্কেল</p>
+          <p className="provisional-note">*প্রাথমিক টেস্ট গতি-স্কেল · ফিনিশ দূরত্ব পরীক্ষামূলক</p>
         </>
       )}
     </main>
