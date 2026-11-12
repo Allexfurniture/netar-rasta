@@ -32,6 +32,8 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
 .touch-controls button{display:grid;place-items:center;width:clamp(48px,7vw,62px);height:clamp(48px,7vw,62px);border:1px solid #a9c0ad;border-radius:16px;background:#183226eF;color:#f4f7ef;box-shadow:0 5px 16px #0005;font:700 17px Manrope,sans-serif;touch-action:none;user-select:none;backdrop-filter:blur(8px)}
 .touch-controls button:active{transform:scale(.96);background:#365b42}
 .touch-controls .go-control{width:clamp(60px,9vw,76px);height:clamp(60px,9vw,76px);border:0;border-radius:50%;background:#cce99a;color:#203426;font-size:18px}
+.touch-controls .boost-control{border-color:#f0bd68;background:#6b421c;color:#fff0c9;font-size:9px;font-weight:800;letter-spacing:.3px}
+.touch-controls .boost-control.is-active,.touch-controls .boost-control:active{background:#f0bd68;color:#30200e;box-shadow:0 0 22px #f0bd6880}
 .touch-controls .secondary-control{font-size:10px}
 .provisional-note{position:absolute;z-index:4;right:14px;bottom:calc(max(78px,env(safe-area-inset-bottom) + 72px));margin:0;color:#f0f4e8;font-size:9px;text-shadow:0 1px 5px #000b}
 .scene-cover{position:absolute;z-index:8;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;color:#edf3ee;background:linear-gradient(180deg,#14251fe8,#101a18f2);backdrop-filter:blur(9px)}
