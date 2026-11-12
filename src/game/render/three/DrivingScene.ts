@@ -869,14 +869,18 @@ export class DrivingScene {
     const controls: InputSnapshot = this.input.consume();
     if (this.finished || this.caught || this.batteryEmpty) return;
     this.elapsedSeconds += dt;
-    const reverseAllowed = controls.reverse && this.distance > 0.05 && !controls.brake;\n    const targetSpeed = controls.brake ? 0 : reverseAllowed ? -4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
+    const reverseAllowed = controls.reverse && this.distance > 0.05 && !controls.brake;
+    const targetSpeed = controls.brake ? 0 : reverseAllowed ? -4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
     this.speed = THREE.MathUtils.damp(this.speed, targetSpeed, 2.4, dt);
     this.maxSpeed = Math.max(this.maxSpeed, Math.round(Math.abs(this.speed) * 8));
     this.steering = THREE.MathUtils.damp(this.steering, controls.steer, 9, dt);
     // Steering moves the vehicle continuously inside the current road corridor.
-    // Keep the complete easybike footprint inside the narrowest connected road segment.\n    this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.steering * 3.8 * dt, -2.65, 2.65);
+    // Keep the complete easybike footprint inside the narrowest connected road segment.
+    this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.steering * 3.8 * dt, -2.65, 2.65);
     this.player.rotation.z = THREE.MathUtils.damp(this.player.rotation.z, -this.steering * 0.11 + (this.crashTime > 0 ? this.crashRoll * Math.sin((this.crashTime / 0.55) * Math.PI) * 0.42 : 0), 7, dt);
-    const roadAhead = getRoadPoint(this.roadState.edgeId, Math.min(1, this.roadState.edgeProgress + 0.06));\n    const roadHeading = -Math.atan2(roadAhead.x - this.roadX, Math.max(0.001, roadAhead.distance - this.distance));\n    this.player.rotation.y = THREE.MathUtils.damp(this.player.rotation.y, roadHeading - this.steering * 0.035, 5, dt);
+    const roadAhead = getRoadPoint(this.roadState.edgeId, Math.min(1, this.roadState.edgeProgress + 0.06));
+    const roadHeading = -Math.atan2(roadAhead.x - this.roadX, Math.max(0.001, roadAhead.distance - this.distance));
+    this.player.rotation.y = THREE.MathUtils.damp(this.player.rotation.y, roadHeading - this.steering * 0.035, 5, dt);
     this.wheelRotation += this.speed * dt * 1.7;
     this.wheels.forEach(wheel => { wheel.rotation.x = this.wheelRotation; });
     const travel = this.speed * dt;
