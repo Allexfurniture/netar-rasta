@@ -725,7 +725,7 @@ export class DrivingScene {
     const skin = this.material(0xb97850);
     const shirt = this.material(0x28664f);
 
-    const addBox = (w:number,h:number,d:number,mat:THREE.Material,x:number,y:number,z:number, bevel = 0) => {
+    const addBox = (w:number,h:number,d:number,mat:THREE.Material,x:number,y:number,z:number) => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
       mesh.position.set(x,y,z); mesh.castShadow=true; mesh.receiveShadow=true;
       this.player.add(mesh); return mesh;
