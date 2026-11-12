@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
-import { DrivingScene, type SceneStatus } from './game/render/three/DrivingScene';
+import { DrivingScene, type CameraMode, type SceneStatus } from './game/render/three/DrivingScene';
 import { ROAD_EDGES, ROAD_NODES } from './game/world/RoadGraph';
 
 type ViewState = 'ready' | 'running' | 'paused' | 'victory' | 'gameover' | 'error';
@@ -8,9 +8,20 @@ export default function App() {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<DrivingScene | null>(null);
   const [view, setView] = useState<ViewState>('ready');
+  const [cameraMode, setCameraMode] = useState<CameraMode>('chase');
   const [sceneMounted, setSceneMounted] = useState(false);
   const [status, setStatus] = useState<SceneStatus>({ speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0, battery: 100, charging: false, damage: 0, batteryEmpty: false, totalDamageCost: 0, collisionCount: 0, damageBreakdown: { car: { hits: 0, cost: 0 }, bus: { hits: 0, cost: 0 }, motorcycle: { hits: 0, cost: 0 }, cng: { hits: 0, cost: 0 }, auto: { hits: 0, cost: 0 }, rickshaw: { hits: 0, cost: 0 }, pedestrian: { hits: 0, cost: 0 } } });
   const [error, setError] = useState('');
+
+  const cameraOrder: CameraMode[] = ['chase', 'elevated', 'close', 'side'];
+  const cameraLabels: Record<CameraMode, string> = { chase: 'পেছনের ভিউ', elevated: 'উঁচু ভিউ', close: 'কাছের ভিউ', side: 'পাশের ভিউ' };
+  const cycleCamera = useCallback(() => {
+    setCameraMode(current => {
+      const next = cameraOrder[(cameraOrder.indexOf(current) + 1) % cameraOrder.length];
+      sceneRef.current?.setCameraMode(next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!sceneMounted || !hostRef.current || sceneRef.current) return;
@@ -39,6 +50,10 @@ export default function App() {
   }, [sceneMounted]);
 
   useEffect(() => {
+    sceneRef.current?.setCameraMode(cameraMode);
+  }, [cameraMode, sceneMounted]);
+
+  useEffect(() => {
     if (view === 'paused' || view === 'victory' || view === 'gameover') sceneRef.current?.pause();
     if (view === 'running') sceneRef.current?.resume();
   }, [view]);
@@ -47,13 +62,16 @@ export default function App() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === 'escape' && view === 'running') setView('paused');
       else if (event.key.toLowerCase() === 'escape' && view === 'paused') setView('running');
+      else if (event.key.toLowerCase() === 'c' && view === 'running') cycleCamera();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [view]);
+  }, [view, cycleCamera]);
 
   const start = useCallback(() => {
     setError('');
+    setCameraMode('chase');
+    sceneRef.current?.setCameraMode('chase');
     setSceneMounted(true);
     setView('running');
   }, []);
@@ -156,7 +174,7 @@ export default function App() {
           <span className="status-dot" />
           {view === 'running' ? 'চলছে' : view === 'paused' ? 'বিরতি' : view === 'victory' ? 'সম্পন্ন' : 'প্রস্তুত'}
         </div>
-        {view === 'running' && <button className="pause-button" onClick={() => setView('paused')} aria-label="গেম বিরতি দিন">Ⅱ</button>}
+        {view === 'running' && <><button className="camera-button" onClick={cycleCamera} aria-label={'ক্যামেরা পরিবর্তন: ' + cameraLabels[cameraMode]} title={cameraLabels[cameraMode]}>ক্যামেরা <small>{cameraLabels[cameraMode]}</small></button><button className="pause-button" onClick={() => setView('paused')} aria-label="গেম বিরতি দিন">Ⅱ</button></>}
         {view === 'paused' && <button className="pause-button" onClick={() => setView('running')} aria-label="গেম আবার চালু করুন">▶</button>}
       </header>
 
