@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { GameLoop } from '../../core/GameLoop';
 import { InputController, type InputSnapshot } from '../../input/InputController';
+import { advanceRoad, createRoadState, type RoadState } from '../../world/RoadGraph';
 
-export type SceneStatus = { speed: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean };
+export type SceneStatus = { speed: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; currentDistrict: string; roadX: number };
 
 export class DrivingScene {
   private readonly scene = new THREE.Scene();
@@ -16,6 +17,9 @@ export class DrivingScene {
   private readonly clockLight = new THREE.PointLight(0xffd28a, 0, 8);
   private readonly finishLine = new THREE.Group();
   private distance = 0;
+  private roadState: RoadState = createRoadState();
+  private currentDistrict = 'ফার্মগেট';
+  private roadX = 0;
   private finished = false;
   private readonly prototypeRouteLength = 1200;
   private readonly resizeObserver: ResizeObserver;
@@ -100,6 +104,24 @@ export class DrivingScene {
     }
     const island = this.box(1.15, 0.2, 7.8, color, 0, 0.12, z + 5.2);
     this.scene.add(island); this.movingWorld.push(island);
+
+    // Two traversable side-road corridors connect this junction to the next node.
+    const addBranch = (side: -1 | 1, fromZ: number, toZ: number) => {
+      const start = new THREE.Vector3(0, 0.018, fromZ);
+      const middle = new THREE.Vector3(side * 9, 0.018, (fromZ + toZ) / 2);
+      const end = new THREE.Vector3(0, 0.018, toZ);
+      for (const [a, b] of [[start, middle], [middle, end]] as const) {
+        const delta = new THREE.Vector3().subVectors(b, a);
+        const length = delta.length();
+        const road = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.045, length), this.material(0x3d4140, 0.98));
+        road.position.copy(a).add(b).multiplyScalar(0.5);
+        road.rotation.y = Math.atan2(delta.x, delta.z);
+        road.receiveShadow = true;
+        this.scene.add(road); this.movingWorld.push(road);
+      }
+    };
+    addBranch(-1, z, z - 88);
+    addBranch(1, z, z - 88);
   }
 
   private buildWorld() {
@@ -503,13 +525,16 @@ export class DrivingScene {
     const targetSpeed = controls.reverse ? 4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
     this.speed = THREE.MathUtils.damp(this.speed, targetSpeed, 2.4, dt);
     this.steering = THREE.MathUtils.damp(this.steering, controls.steer, 7.5, dt);
-    this.player.position.x = THREE.MathUtils.clamp(this.player.position.x + this.steering * dt * 5.2, -4.7, 4.7);
     this.player.rotation.z = THREE.MathUtils.damp(this.player.rotation.z, -this.steering * 0.09, 6, dt);
     this.player.rotation.y = THREE.MathUtils.damp(this.player.rotation.y, -this.steering * 0.08, 5, dt);
     this.wheelRotation += this.speed * dt * 1.7;
     this.wheels.forEach(wheel => { wheel.rotation.x = this.wheelRotation; });
     const travel = this.speed * dt;
-    this.distance += travel;
+    this.roadState = advanceRoad(this.roadState, travel, controls.steer);
+    this.distance = this.roadState.distance;
+    this.roadX = this.roadState.x;
+    this.currentDistrict = this.distance < 112 ? 'ফার্মগেট' : this.distance < 202 ? 'শাহবাগ' : 'ধানমন্ডি';
+    this.player.position.x = THREE.MathUtils.damp(this.player.position.x, this.roadX, 8, dt);
     this.finishLine.position.z += travel;
     this.movingWorld.forEach(object => {
       object.position.z += travel;
@@ -524,7 +549,7 @@ export class DrivingScene {
       this.speed = 0;
       this.input.clear();
     }
-    this.onStatus({ speed: Math.round(this.speed * 8), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished });
+    this.onStatus({ speed: Math.round(this.speed * 8), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished, currentDistrict: this.currentDistrict, roadX: this.roadX });
   }
 
   private resize() {
