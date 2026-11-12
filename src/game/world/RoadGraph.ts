@@ -34,7 +34,7 @@ export const ROAD_EDGES: RoadEdge[] = [
   { id: 'jigatola-finish', from: 'jigatola-link', to: 'finish', choice: 0 },
 ];
 
-export type RoadState = { edgeId: string; edgeProgress: number; distance: number; nodeId: string; pendingChoice: -1 | 0 | 1 };
+export type RoadState = { edgeId: string; edgeProgress: number; distance: number; nodeId: string; pendingChoice: -1 | 0 | 1; history: string[] };
 export type RoadAdvance = RoadState & { x: number; district: string; nextChoices: Array<{ direction: -1 | 1; label: string }> };
 
 const nodeById = new Map(ROAD_NODES.map(node => [node.id, node]));
@@ -42,7 +42,7 @@ const edgeById = new Map(ROAD_EDGES.map(edge => [edge.id, edge]));
 const outgoing = (nodeId: string) => ROAD_EDGES.filter(edge => edge.from === nodeId);
 
 export function createRoadState(): RoadState {
-  return { edgeId: 'start-farmgate', edgeProgress: 0, distance: 0, nodeId: 'start', pendingChoice: 0 };
+  return { edgeId: 'start-farmgate', edgeProgress: 0, distance: 0, nodeId: 'start', pendingChoice: 0, history: [] };
 }
 
 export function getRoadPoint(edgeId: string, progress: number) {
@@ -60,6 +60,7 @@ export function advanceRoad(state: RoadState, amount: number, steer: number): Ro
   let distance = state.distance;
   let nodeId = state.nodeId;
   let pendingChoice = state.pendingChoice;
+  const history = [...state.history];
   let remaining = Math.max(0, amount);
   for (let guard = 0; guard < 8 && remaining > 0; guard++) {
     const edge = edgeById.get(edgeId)!;
@@ -74,6 +75,7 @@ export function advanceRoad(state: RoadState, amount: number, steer: number): Ro
     remaining -= step;
     if (edgeProgress >= 0.999999) {
       nodeId = edge.to;
+      history.push(edgeId);
       edgeProgress = 0;
       const choices = outgoing(nodeId);
       if (!choices.length) break;
@@ -90,7 +92,7 @@ export function advanceRoad(state: RoadState, amount: number, steer: number): Ro
   const nextChoices = outgoing(nodeId)
     .filter(edge => edge.choice !== 0)
     .map(edge => ({ direction: edge.choice as -1 | 1, label: nodeById.get(edge.to)?.label ?? '' }));
-  return { edgeId, edgeProgress, distance, nodeId, pendingChoice, x: point.x, district, nextChoices };
+  return { edgeId, edgeProgress, distance, nodeId, pendingChoice, history, x: point.x, district, nextChoices };
 }
 
 export function retreatRoad(state: RoadState, amount: number): RoadAdvance {
@@ -98,15 +100,17 @@ export function retreatRoad(state: RoadState, amount: number): RoadAdvance {
   let edgeProgress = state.edgeProgress;
   let distance = state.distance;
   let nodeId = state.nodeId;
+  const history = [...state.history];
   let remaining = Math.max(0, amount);
   for (let guard = 0; guard < 8 && remaining > 0; guard++) {
     const edge = edgeById.get(edgeId)!;
     const from = nodeById.get(edge.from)!;
     const edgeLength = Math.max(0.001, nodeById.get(edge.to)!.distance - from.distance);
     if (edgeProgress <= 0.000001) {
-      const previous = ROAD_EDGES.filter(candidate => candidate.to === from.id);
-      if (!previous.length) break;
-      const previousEdge = previous.find(candidate => candidate.choice === 0) ?? previous[0];
+      const previousId = history.pop();
+      if (!previousId) break;
+      const previousEdge = edgeById.get(previousId);
+      if (!previousEdge || previousEdge.to !== from.id) break;
       edgeId = previousEdge.id;
       edgeProgress = 1;
       nodeId = previousEdge.from;
@@ -127,7 +131,7 @@ export function retreatRoad(state: RoadState, amount: number): RoadAdvance {
   const nextChoices = outgoing(nodeId)
     .filter(edge => edge.choice !== 0)
     .map(edge => ({ direction: edge.choice as -1 | 1, label: nodeById.get(edge.to)?.label ?? '' }));
-  return { edgeId, edgeProgress, distance, nodeId, pendingChoice: 0, x: point.x, district, nextChoices };
+  return { edgeId, edgeProgress, distance, nodeId, pendingChoice: 0, history, x: point.x, district, nextChoices };
 }
 
 export function roadMapPoint(nodeId: string) {
