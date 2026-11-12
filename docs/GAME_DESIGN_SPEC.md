@@ -246,8 +246,8 @@ The current prototype now includes a first connected, directed Farmgate–Shahba
 The latest environment pass adds visible junction/crosswalk set pieces, Bengali district wayfinding signs for Farmgate, Shahbagh, and Dhanmondi, decorative traffic signals, overhead utility cables, a stylized National Parliament landmark silhouette, and a broader set of ambient traffic silhouettes: buses, cars, CNGs, battery electric auto-rickshaws/easybikes, pedal rickshaws, and motorcycles. These traffic and environment objects currently scroll as decorative scenery; they are not yet a graph-routed traffic simulation, and the junction props do not yet provide selectable road branches.
 
 The scene remains procedural prototype geometry, not production-grade art. The Parliament landmark is an illustrative silhouette rather than a geographically accurate reconstruction. Bengali signboard rendering depends on available browser fonts. Outstanding work:
-- Build a real connected road graph with traversable junction branches between Farmgate, Shahbagh, and Dhanmondi; drive the player on graph edges rather than lateral movement along a straight corridor.
-- Make the minimap derive from the same graph and current player edge/position.
+- Validate left/straight/right junction selection and steering-latch timing on touch devices; refine the branch-road geometry and ensure the selected route stays visually aligned with the rickshaw.
+- Expand the initial graph beyond the three starter junctions only after route layout and gameplay QA; keep simulation, traffic, and minimap bound to the same graph data.
 - Convert traffic into lane-aware agents with graph routing, following/headway, pooling, collision shapes, and validated collision handling.
 - Replace procedural player and traffic vehicle meshes with optimized, properly licensed production GLB assets or artist-authored models after review.
 - Add animated pedestrians, 5–10 chaser pursuit, and caught/escape outcomes.
@@ -262,8 +262,8 @@ The scene remains procedural prototype geometry, not production-grade art. The P
 
 1. Complete the Three.js third-person vertical slice and validate build/runtime.
 2. Define the Route Run path, finish-line trigger, button-only touch control layout, BOOST behavior, and Victory/Game Over transitions.
-3. Convert the connected road graph into 3D road geometry and implement junction navigation.
-4. Implement minimap and final city layout/landmarks.
+3. QA the initial connected road graph, branch selection, and 3D road alignment on desktop and mobile.
+4. Extend the shared graph and refine minimap/city landmark placement.
 5. Implement traffic AI, pedestrians, collision severity, damage effects, and collision score rewards.
 6. Implement battery and map-based charging stations.
 7. Implement pursuit, escape, caught/Game Over, and finish-line Victory behavior.
