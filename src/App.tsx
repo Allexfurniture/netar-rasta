@@ -4,13 +4,14 @@ import { ROAD_EDGES, ROAD_NODES } from './game/world/RoadGraph';
 
 type ViewState = 'ready' | 'loading' | 'running' | 'paused' | 'victory' | 'gameover' | 'error';
 
+const INITIAL_STATUS: SceneStatus = { speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0, battery: 100, charging: false, damage: 0, batteryEmpty: false, totalDamageCost: 0, collisionCount: 0, damageBreakdown: { car: { hits: 0, cost: 0 }, bus: { hits: 0, cost: 0 }, motorcycle: { hits: 0, cost: 0 }, cng: { hits: 0, cost: 0 }, auto: { hits: 0, cost: 0 }, rickshaw: { hits: 0, cost: 0 }, pedestrian: { hits: 0, cost: 0 } } };
+
 export default function App() {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<DrivingScene | null>(null);
   const [view, setView] = useState<ViewState>('ready');
   const [cameraMode, setCameraMode] = useState<CameraMode>('chase');
   const [sceneMounted, setSceneMounted] = useState(false);
-  const INITIAL_STATUS: SceneStatus = { speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0, battery: 100, charging: false, damage: 0, batteryEmpty: false, totalDamageCost: 0, collisionCount: 0, damageBreakdown: { car: { hits: 0, cost: 0 }, bus: { hits: 0, cost: 0 }, motorcycle: { hits: 0, cost: 0 }, cng: { hits: 0, cost: 0 }, auto: { hits: 0, cost: 0 }, rickshaw: { hits: 0, cost: 0 }, pedestrian: { hits: 0, cost: 0 } } };
   const [status, setStatus] = useState<SceneStatus>(INITIAL_STATUS);
   const [error, setError] = useState('');
 
