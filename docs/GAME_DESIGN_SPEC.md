@@ -228,13 +228,13 @@ Do not silently promote prototype tuning values to final game balance.
 
 ## 12. Current 3D prototype status and known gaps
 
-The current Three.js prototype now renders the starter connected road graph as 3D road ribbons, follows a graph edge in a third-person chase camera, chooses a legal outgoing edge at junctions, displays a persistent Bengali minimap driven by the same graph coordinates, and places basic landmark props. It also retains procedural rickshaw/traffic meshes, touch/keyboard controls, provisional collision/damage, speed, distance, score, battery HUD, and start/Game Over screens.
+The current Three.js prototype renders the starter connected road graph as 3D road ribbons, follows graph edges in a third-person chase camera, selects connected roads at junctions, and displays a persistent Bengali minimap driven by the same graph coordinates. Traffic now includes pooled-at-startup prototype agents representing buses, cars, CNGs, rickshaws, and motorcycles. Each agent follows directed graph edges, selects a connected outgoing edge at junctions, maintains a basic same-edge following headway, uses a lane offset, and participates in rate-limited player collision handling. Basic landmark props, touch/keyboard controls, provisional driving balance, battery HUD, and start/Game Over screens remain.
 
 It is not the completed game. Outstanding work:
 - Replace the straight prototype corridor with the full connected 3D road graph.
 - Implement junction turns and a persistent minimap.
 - Build final Farmgate, Shahbagh, Dhanmondi, Parliament landmark, bus stops, and decorative signals.
-- Implement proper Dhaka vehicle models and road-graph traffic AI.
+- Refine the initial road-graph traffic AI with hands-on validation, improved vehicle art, lane discipline at junctions, and more robust multi-agent collision avoidance.
 - Add pedestrians, 5–10 chaser pursuit, and caught/escape outcomes.
 - Replace provisional collision and battery values with approved balancing.
 - Implement exact 5-second charging rule with map-based station radius.
