@@ -1012,7 +1012,7 @@ export class DrivingScene {
       this.speed = 0;
       this.input.clear();
     }
-    this.onStatus({ speed: Math.round(Math.abs(this.speed) * 8), maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX, battery: Math.round(this.battery), charging: this.charging, damage: Math.round(this.damage), batteryEmpty: this.batteryEmpty });
+    this.onStatus({ speed: Math.round(Math.abs(this.speed) * 8), maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX, battery: Math.round(this.battery), charging: this.charging, damage: Math.round(this.damage), batteryEmpty: this.batteryEmpty, totalDamageCost: this.totalDamageCost, collisionCount: this.collisionCount, damageBreakdown: this.damageBreakdown });
   }
 
   private resize() {
