@@ -2,14 +2,14 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'rea
 import { DrivingScene, type SceneStatus } from './game/render/three/DrivingScene';
 import { ROAD_EDGES, ROAD_NODES } from './game/world/RoadGraph';
 
-type ViewState = 'ready' | 'running' | 'paused' | 'victory' | 'error';
+type ViewState = 'ready' | 'running' | 'paused' | 'victory' | 'gameover' | 'error';
 
 export default function App() {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<DrivingScene | null>(null);
   const [view, setView] = useState<ViewState>('ready');
   const [sceneMounted, setSceneMounted] = useState(false);
-  const [status, setStatus] = useState<SceneStatus>({ speed: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, currentDistrict: 'ফার্মগেট', roadX: 0 });
+  const [status, setStatus] = useState<SceneStatus>({ speed: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0 });
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -20,7 +20,8 @@ export default function App() {
         const now = performance.now();
         if (now - lastPublish > 120) {
           setStatus(next);
-          if (next.finished) setView('victory');
+          if (next.caught) setView('gameover');
+          else if (next.finished) setView('victory');
           lastPublish = now;
         }
       });
@@ -37,7 +38,7 @@ export default function App() {
   }, [sceneMounted]);
 
   useEffect(() => {
-    if (view === 'paused' || view === 'victory') sceneRef.current?.pause();
+    if (view === 'paused' || view === 'victory' || view === 'gameover') sceneRef.current?.pause();
     if (view === 'running') sceneRef.current?.resume();
   }, [view]);
 
@@ -83,6 +84,15 @@ export default function App() {
             <span className="cover-hint">কীবোর্ড: ← → স্টিয়ারিং · ↑ গতি · ↓ রিভার্স · Space হর্ন</span>
           </div>
         )}
+        {view === 'gameover' && (
+          <div className="scene-cover modal-cover">
+            <div className="cover-icon" aria-hidden="true">😵</div>
+            <p className="cover-kicker">CHASE ENDED</p>
+            <h2>ধরা পড়ে গেছেন!</h2>
+            <p>পেছনের দল আপনাকে ধরে ফেলেছে। পরেরবার BOOST ব্যবহার করে দূরত্ব বাড়ান।</p>
+            <button className="primary-button" onClick={() => { sceneRef.current?.dispose(); sceneRef.current = null; setSceneMounted(false); setStatus({ speed: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0 }); setView('ready'); }}>আবার খেলুন</button>
+          </div>
+        )}
         {view === 'victory' && (
           <div className="scene-cover modal-cover">
             <div className="cover-icon" aria-hidden="true">🏁</div>
@@ -125,6 +135,7 @@ export default function App() {
 
       {view === 'running' && (
         <>
+          {status.pursuitActive && <div className="pursuit-alert" role="status">সতর্কতা: পেছনে ধাওয়া শুরু হয়েছে! BOOST দিয়ে দূরত্ব বাড়ান</div>}
           <section className="game-hud" aria-label="গেমের অবস্থা">
             <div className="hud-card speed-card">
               <span>গতি</span>
