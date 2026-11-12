@@ -59,7 +59,9 @@ test('reverse driving retraces the exact previously selected branch', () => {
   const reversed = retreatRoad(forward, 50);
   assert.equal(reversed.distance, 80);
   assert.equal(reversed.edgeId, 'farmgate-tejgaon');
-  assert.ok(Math.abs(reversed.x - (-4.5 * (10 / 42))) < 1e-9);
+  const reverseProgress = 10 / 42;
+  const easedProgress = reverseProgress * reverseProgress * (3 - 2 * reverseProgress);
+  assert.ok(Math.abs(reversed.x - (-4.5 * easedProgress)) < 1e-9);
   assert.deepEqual(reversed.history, ['start-farmgate']);
 });
 
@@ -79,4 +81,27 @@ test('advancing after reversing continues from the restored branch', () => {
   assert.equal(continued.distance, 130);
   assert.equal(continued.edgeId, forward.edgeId);
   assert.ok(Math.abs(continued.x - forward.x) < 1e-9);
+});
+
+
+test('curved road eases laterally and reaches exact junction coordinates', () => {
+  const start = getRoadPoint('farmgate-tejgaon', 0);
+  const quarter = getRoadPoint('farmgate-tejgaon', 0.25);
+  const middle = getRoadPoint('farmgate-tejgaon', 0.5);
+  const end = getRoadPoint('farmgate-tejgaon', 1);
+  assert.equal(start.x, 0);
+  assert.ok(Math.abs(quarter.x - (-0.703125)) < 1e-9);
+  assert.equal(middle.x, -2.25);
+  assert.equal(end.x, -4.5);
+  assert.ok(Math.abs(getRoadPoint('tejgaon-shahbagh', 0).x - end.x) < 1e-9);
+  assert.equal(getRoadPoint('tejgaon-shahbagh', 1).x, 0);
+});
+
+test('left and right curves are mirrored around the main road', () => {
+  for (const progress of [0.1, 0.25, 0.5, 0.75, 0.9]) {
+    const left = getRoadPoint('farmgate-tejgaon', progress);
+    const right = getRoadPoint('farmgate-karwan', progress);
+    assert.ok(Math.abs(left.x + right.x) < 1e-9);
+    assert.ok(Math.abs(left.distance - right.distance) < 1e-9);
+  }
 });
