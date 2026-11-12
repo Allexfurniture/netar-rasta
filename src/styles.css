@@ -180,3 +180,30 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
   .touch-controls .go-control,.touch-controls .boost-control{width:51px;height:47px}
   .touch-controls .brake-control,.touch-controls .reverse-control{width:51px;height:43px}
 }
+
+
+.finish-stats{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(112px,1fr));
+  gap:9px;
+  width:min(100%,360px);
+  margin:4px 0 20px;
+}
+.finish-stats>div{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  padding:12px 14px;
+  border:1px solid #ffffff24;
+  border-radius:14px;
+  background:linear-gradient(145deg,#203d31dd,#14271fe8);
+  box-shadow:0 7px 20px #0003;
+}
+.finish-stats span{color:#bfd0c2;font-size:11px}
+.finish-stats strong{color:#f5f8ed;font:800 19px Manrope,'Hind Siliguri',sans-serif}
+@media(max-height:680px){
+ .finish-stats{gap:6px;margin:2px 0 12px}
+ .finish-stats>div{padding:8px 11px}
+ .finish-stats strong{font-size:16px}
+ .modal-cover{overflow-y:auto;justify-content:flex-start;padding-top:max(62px,env(safe-area-inset-top) + 50px);padding-bottom:20px}
+}
