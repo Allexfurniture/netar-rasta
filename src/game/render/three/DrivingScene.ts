@@ -3,6 +3,7 @@ import { GameLoop } from '../../core/GameLoop';
 import { InputController, type InputSnapshot } from '../../input/InputController';
 import { advanceRoad, retreatRoad, createRoadState, getRoadPoint, type RoadAdvance, type RoadState } from '../../world/RoadGraph';
 
+export type CameraMode = 'chase' | 'elevated' | 'close' | 'side';
 export type DamageCategory = 'car' | 'bus' | 'motorcycle' | 'cng' | 'auto' | 'rickshaw' | 'pedestrian';
 export type DamageCategoryStats = Record<DamageCategory, { hits: number; cost: number }>;
 export type SceneStatus = { speed: number; maxSpeed: number; score: number; elapsedSeconds: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; caught: boolean; pursuitActive: boolean; currentDistrict: string; roadX: number; battery: number; charging: boolean; damage: number; batteryEmpty: boolean; totalDamageCost: number; collisionCount: number; damageBreakdown: DamageCategoryStats };
@@ -15,6 +16,13 @@ export class DrivingScene {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(55, 1, 0.1, 320);
   private readonly cameraLookTarget = new THREE.Vector3(0, 1.2, -6.5);
+  private cameraMode: CameraMode = 'chase';
+  private readonly cameraPresets: Record<CameraMode, { x: number; y: number; z: number; lookX: number; lookY: number; lookZ: number; fov: number }> = {
+    chase: { x: 0, y: 6.1, z: 10.8, lookX: 0, lookY: 1.2, lookZ: -6.5, fov: 55 },
+    elevated: { x: 0, y: 8.4, z: 13.2, lookX: 0, lookY: 0.9, lookZ: -8.2, fov: 59 },
+    close: { x: 0, y: 4.65, z: 7.6, lookX: 0, lookY: 1.35, lookZ: -5.1, fov: 51 },
+    side: { x: 4.8, y: 5.7, z: 9.4, lookX: -1.0, lookY: 1.2, lookZ: -5.8, fov: 57 },
+  };
   private readonly renderer: THREE.WebGLRenderer;
   private readonly input: InputController;
   private readonly loop: GameLoop;
@@ -1029,15 +1037,18 @@ export class DrivingScene {
     const shake = this.collisionShake > 0 ? Math.sin(this.wheelRotation * 3.2) * this.collisionShake * 0.22 : 0;
     const speedCameraLift = Math.min(0.9, Math.abs(this.speed) * 0.035);
     const speedCameraPullback = Math.min(1.8, Math.abs(this.speed) * 0.07);
-    const desiredCameraX = this.player.position.x * 0.52;
-    const desiredCameraY = 6.1 + speedCameraLift;
-    const desiredCameraZ = 10.8 + speedCameraPullback;
+    const cameraPreset = this.cameraPresets[this.cameraMode];
+    const desiredCameraX = this.player.position.x * 0.52 + cameraPreset.x;
+    const desiredCameraY = cameraPreset.y + speedCameraLift * (this.cameraMode === 'close' ? 0.45 : 1);
+    const desiredCameraZ = cameraPreset.z + speedCameraPullback * (this.cameraMode === 'close' ? 0.55 : 1);
     this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, desiredCameraX, 2.8, dt) + shake;
     this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, desiredCameraY, 2.2, dt);
     this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, desiredCameraZ, 2.2, dt);
-    this.cameraLookTarget.x = THREE.MathUtils.damp(this.cameraLookTarget.x, this.player.position.x * 0.2, 3.0, dt);
-    this.cameraLookTarget.y = THREE.MathUtils.damp(this.cameraLookTarget.y, 1.2, 2.5, dt);
-    this.cameraLookTarget.z = THREE.MathUtils.damp(this.cameraLookTarget.z, -6.5, 2.5, dt);
+    this.cameraLookTarget.x = THREE.MathUtils.damp(this.cameraLookTarget.x, this.player.position.x * 0.2 + cameraPreset.lookX, 3.0, dt);
+    this.cameraLookTarget.y = THREE.MathUtils.damp(this.cameraLookTarget.y, cameraPreset.lookY, 2.5, dt);
+    this.cameraLookTarget.z = THREE.MathUtils.damp(this.cameraLookTarget.z, cameraPreset.lookZ, 2.5, dt);
+    this.camera.fov = THREE.MathUtils.damp(this.camera.fov, cameraPreset.fov, 2.4, dt);
+    this.camera.updateProjectionMatrix();
     this.camera.lookAt(this.cameraLookTarget);
     if (this.caught || this.batteryEmpty) {
       this.onStatus({ speed: 0, maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: 0, hornFlash: false, boostActive: false, distance: Math.floor(this.distance), finished: false, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX, battery: Math.round(this.battery), charging: this.charging, damage: Math.round(this.damage), batteryEmpty: this.batteryEmpty, totalDamageCost: this.totalDamageCost, collisionCount: this.collisionCount, damageBreakdown: this.damageBreakdown });
@@ -1072,6 +1083,10 @@ export class DrivingScene {
 
   setTouch(key: 'left' | 'right' | 'accelerate' | 'reverse' | 'brake' | 'boost', pressed: boolean) {
     this.input.setTouch(key, pressed);
+  }
+
+  setCameraMode(mode: CameraMode) {
+    this.cameraMode = mode;
   }
 
   dispose() {
