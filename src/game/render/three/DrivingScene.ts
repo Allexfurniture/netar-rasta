@@ -58,71 +58,134 @@ export class DrivingScene {
   }
 
   private buildWorld() {
-    this.scene.background = new THREE.Color(0x9fc5c5);
-    this.scene.fog = new THREE.Fog(0x9fc5c5, 65, 230);
-    const hemi = new THREE.HemisphereLight(0xe7f4ef, 0x586b53, 2.0);
+    this.scene.background = new THREE.Color(0x9bc9d4);
+    this.scene.fog = new THREE.Fog(0x9bc9d4, 85, 260);
+    const hemi = new THREE.HemisphereLight(0xe8f6f1, 0x52654b, 2.25);
     this.scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xffe3b7, 3.1);
-    sun.position.set(-18, 32, 18);
+    const sun = new THREE.DirectionalLight(0xffe0ae, 3.2);
+    sun.position.set(-22, 36, 20);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -24; sun.shadow.camera.right = 24;
-    sun.shadow.camera.top = 32; sun.shadow.camera.bottom = -32;
+    sun.shadow.camera.left = -32; sun.shadow.camera.right = 32;
+    sun.shadow.camera.top = 38; sun.shadow.camera.bottom = -38;
     this.scene.add(sun);
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(180, 300), this.material(0x718d69));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 360), this.material(0x78956b));
     ground.rotation.x = -Math.PI / 2;
-    ground.position.set(0, -0.12, -100);
+    ground.position.set(0, -0.16, -120);
     ground.receiveShadow = true;
     this.scene.add(ground);
 
-    const road = new THREE.Mesh(new THREE.PlaneGeometry(14, 300), this.material(0x343b3b, 0.98));
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(15, 360), this.material(0x3d4140, 0.98));
     road.rotation.x = -Math.PI / 2;
-    road.position.set(0, 0, -100);
+    road.position.set(0, 0, -120);
     road.receiveShadow = true;
     this.scene.add(road);
 
-    for (const x of [-7.35, 7.35]) {
-      const curb = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 300), this.material(0xc7bda2));
-      curb.position.set(x, 0.02, -100);
+    for (const x of [-7.7, 7.7]) {
+      const curb = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.24, 360), this.material(0xe0d0ad));
+      curb.position.set(x, 0.04, -120);
       curb.receiveShadow = true;
       this.scene.add(curb);
-      const sidewalk = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 300), this.material(0xb8ad92));
-      sidewalk.position.set(x + (x < 0 ? -1.9 : 1.9), -0.015, -100);
+      const sidewalk = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.18, 360), this.material(0xc4b89c));
+      sidewalk.position.set(x + (x < 0 ? -2.25 : 2.25), -0.02, -120);
+      sidewalk.receiveShadow = true;
       this.scene.add(sidewalk);
+      const drain = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.08, 360), this.material(0x777b70));
+      drain.position.set(x + (x < 0 ? -0.42 : 0.42), 0.11, -120);
+      this.scene.add(drain);
     }
 
-    const lanePaint = this.material(0xe8dfb8);
-    for (const x of [-2.35, 2.35]) {
-      for (let i = 0; i < 24; i++) {
-        const dash = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.025, 3.0), lanePaint);
-        dash.position.set(x, 0.025, -i * 9 - 4);
+    const lanePaint = this.material(0xf3e7bd);
+    for (const x of [-2.5, 2.5]) {
+      for (let i = 0; i < 30; i++) {
+        const dash = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.028, 3.8), lanePaint);
+        dash.position.set(x, 0.026, -i * 10 - 3);
         this.scene.add(dash);
         this.movingWorld.push(dash);
       }
     }
+    // Crosswalk and road-side paint add recognizable Dhaka street detail.
+    for (let i = 0; i < 7; i++) {
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(13.8, 0.035, 0.42), this.material(0xe9e3d2));
+      stripe.position.set(0, 0.035, -82 - i * 1.05);
+      this.scene.add(stripe);
+      this.movingWorld.push(stripe);
+    }
 
-    const palette = [0xc77c54, 0xd4b77e, 0x879b9b, 0xd5d0bd, 0x9d806b];
-    for (let i = 0; i < 18; i++) {
+    const palette = [0xe7b87d, 0xd98e72, 0x9db9a4, 0xe5d3a7, 0xc3a1c9, 0xd9c5a4];
+    const shopNames = ['চা ঘর', 'মায়ের দোয়া', 'ফার্মেসি', 'মোবাইল কর্নার', 'মুদি দোকান', 'হোটেল'];
+    for (let i = 0; i < 22; i++) {
       const side = i % 2 === 0 ? -1 : 1;
-      const z = -15 - Math.floor(i / 2) * 19;
-      const width = 5 + (i % 3) * 1.8;
-      const height = 7 + (i % 4) * 3.5;
-      const x = side * (12 + width / 2);
-      const building = this.box(width, height, 10, palette[i % palette.length], x, height / 2 - 0.1, z);
-      this.scene.add(building);
-      this.movingWorld.push(building);
-      const roof = this.box(width + 0.18, 0.28, 10.18, 0x625d50, x, height + 0.02, z);
-      this.scene.add(roof);
-      this.movingWorld.push(roof);
-      for (let row = 0; row < Math.max(2, Math.floor(height / 2.4)); row++) {
-        for (let col = 0; col < 2; col++) {
-          const windowMesh = this.box(0.8, 1.05, 0.08, 0x385a60, x + (col ? 1 : -1) * width * 0.22, 1.8 + row * 2.1, z + 5.06);
-          windowMesh.castShadow = false;
-          this.scene.add(windowMesh);
-          this.movingWorld.push(windowMesh);
+      const row = Math.floor(i / 2);
+      const z = -17 - row * 22;
+      const width = 6.2 + (i % 3) * 1.1;
+      const height = 8.5 + (i % 4) * 2.2;
+      const x = side * (13.1 + width / 2);
+      const building = this.box(width, height, 10.5, palette[i % palette.length], x, height / 2 - 0.12, z);
+      this.scene.add(building); this.movingWorld.push(building);
+      const roof = this.box(width + 0.3, 0.34, 10.8, 0x776a59, x, height + 0.02, z);
+      this.scene.add(roof); this.movingWorld.push(roof);
+
+      // Front facade: windows, balconies, shop shutters and Bengali signboards.
+      for (let floor = 0; floor < Math.max(2, Math.floor(height / 3)); floor++) {
+        const y = 1.65 + floor * 2.65;
+        for (let col = 0; col < 3; col++) {
+          const wx = x + (col - 1) * width * 0.27;
+          const glass = this.box(1.05, 1.35, 0.1, floor === 0 ? 0x547f83 : 0x52717a, wx, y, z + 5.31);
+          this.scene.add(glass); this.movingWorld.push(glass);
+          const frame = this.box(1.18, 0.12, 0.16, 0xf1dfbd, wx, y - 0.73, z + 5.34);
+          this.scene.add(frame); this.movingWorld.push(frame);
+          if (floor > 0) {
+            const balcony = this.box(1.45, 0.12, 0.55, 0x7d6550, wx, y - 0.82, z + 5.58);
+            this.scene.add(balcony); this.movingWorld.push(balcony);
+            for (let rail = -1; rail <= 1; rail++) {
+              const bar = this.box(0.055, 0.52, 0.055, 0xe8d4b3, wx + rail * 0.48, y - 0.53, z + 5.78);
+              this.scene.add(bar); this.movingWorld.push(bar);
+            }
+          }
         }
       }
+      const shop = this.box(width * 0.82, 1.55, 0.16, 0x4b514b, x, 1.0, z + 5.36);
+      this.scene.add(shop); this.movingWorld.push(shop);
+      const sign = this.box(width * 0.78, 0.85, 0.28, [0x17664f,0x9b3d35,0x315c87,0x9b6a26][i % 4], x, 2.25, z + 5.48);
+      this.scene.add(sign); this.movingWorld.push(sign);
+      // Bright striped awning gives the street a lively market feel.
+      for (let stripe = 0; stripe < 6; stripe++) {
+        const awning = this.box(width * 0.14, 0.12, 1.15, stripe % 2 ? 0xf3e3bf : 0xc94f42, x + (stripe - 2.5) * width * 0.14, 2.95, z + 5.72);
+        this.scene.add(awning); this.movingWorld.push(awning);
+      }
+      const aircon = this.box(0.72, 0.42, 0.42, 0xe9e5d8, x + width * 0.34, height - 1.4, z + 5.45);
+      this.scene.add(aircon); this.movingWorld.push(aircon);
+    }
+
+    // Street trees, utility poles, overhead cables and lamps.
+    for (let i = 0; i < 14; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const z = -12 - i * 17;
+      const x = side * (9.2 + (i % 3) * 0.5);
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 2.8, 7), this.material(0x795438));
+      trunk.position.set(x, 1.35, z); this.scene.add(trunk); this.movingWorld.push(trunk);
+      const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(1.65 + (i % 2) * 0.25, 1), this.material(i % 3 ? 0x4f8b58 : 0x679c60));
+      crown.position.set(x, 3.5, z); crown.castShadow = true; this.scene.add(crown); this.movingWorld.push(crown);
+      const pole = this.box(0.16, 8.5, 0.16, 0x626c69, side * 11.1, 4.1, z - 5);
+      this.scene.add(pole); this.movingWorld.push(pole);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), this.material(0xffe1a0, 0.35));
+      lamp.position.set(side * 10.55, 7.9, z - 5); this.scene.add(lamp); this.movingWorld.push(lamp);
+    }
+
+    // A few colorful roadside stalls and parked two-wheelers break up the skyline.
+    for (let i = 0; i < 8; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const z = -30 - i * 35;
+      const x = side * 9.1;
+      const stall = this.box(2.4, 1.55, 1.65, i % 2 ? 0xd8a45f : 0x5f9c86, x, 0.9, z);
+      this.scene.add(stall); this.movingWorld.push(stall);
+      const canopy = this.box(2.8, 0.16, 2.05, i % 2 ? 0xb94438 : 0xe6c35e, x, 2.05, z);
+      this.scene.add(canopy); this.movingWorld.push(canopy);
+      const parkedWheel = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.09, 8, 18), this.material(0x252a29));
+      parkedWheel.position.set(x + side * 1.25, 0.43, z + 0.45); parkedWheel.rotation.y = Math.PI / 2;
+      this.scene.add(parkedWheel); this.movingWorld.push(parkedWheel);
     }
 
     this.buildRickshaw();
@@ -132,8 +195,8 @@ export class DrivingScene {
     this.clockLight.position.set(0, 2.2, -0.8);
     this.player.add(this.clockLight);
 
-    this.camera.position.set(0, 5.6, 9.5);
-    this.camera.lookAt(0, 1.1, -5);
+    this.camera.position.set(0, 5.2, 9.2);
+    this.camera.lookAt(0, 1.25, -7);
   }
 
   private buildFinishLine() {
