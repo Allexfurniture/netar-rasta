@@ -769,8 +769,9 @@ export class DrivingScene {
       shape.lineTo(0.10,1.08); shape.closePath();
       const geo = new THREE.ExtrudeGeometry(shape,{depth:0.09,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:0.035,bevelThickness:0.035});
       const panel = new THREE.Mesh(geo,mat);
-      panel.rotation.y=Math.PI/2;
-      panel.position.set(x,0,0);
+      panel.rotation.y=x < 0 ? -Math.PI/2 : Math.PI/2;
+      if (x > 0) panel.scale.x=-1;
+      panel.position.set(x < 0 ? x-0.09 : x,0,0);
       panel.castShadow=true; panel.receiveShadow=true; this.player.add(panel);
     };
 
