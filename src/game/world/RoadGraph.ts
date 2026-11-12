@@ -51,7 +51,10 @@ export function getRoadPoint(edgeId: string, progress: number) {
   const from = nodeById.get(edge.from)!;
   const to = nodeById.get(edge.to)!;
   const t = Math.max(0, Math.min(1, progress));
-  return { x: from.x + (to.x - from.x) * t, distance: from.distance + (to.distance - from.distance) * t };
+  // Smoothstep gives every connected edge a zero lateral tangent at junctions,
+  // avoiding abrupt steering-angle changes while preserving exact node positions.
+  const curveT = t * t * (3 - 2 * t);
+  return { x: from.x + (to.x - from.x) * curveT, distance: from.distance + (to.distance - from.distance) * t };
 }
 
 export function advanceRoad(state: RoadState, amount: number, steer: number): RoadAdvance {
