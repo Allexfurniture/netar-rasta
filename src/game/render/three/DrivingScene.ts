@@ -32,7 +32,7 @@ export class DrivingScene {
     this.renderer.setClearColor(0x9fc5c5);
     this.renderer.domElement.setAttribute('aria-label', 'থ্রিডি রিকশা ড্রাইভিং দৃশ্য');
     this.host.appendChild(this.renderer.domElement);
-    this.input = new InputController(this.renderer.domElement);
+    this.input = new InputController();
     this.buildWorld();
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.host);
