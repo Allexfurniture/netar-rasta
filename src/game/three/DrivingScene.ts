@@ -52,7 +52,8 @@ export class DrivingScene {
   private mapPoint: Point2D = { x: 0.16, y: 0.18 };
   private district = 'ফার্মগেট';
   private junctionCooldown = 0;
-  private roadMaterials: THREE.MeshStandardMaterial[] = [];\n  private playerCollisionCooldown = 0;
+  private roadMaterials: THREE.MeshStandardMaterial[] = [];
+  private playerCollisionCooldown = 0;
 
   constructor(host: HTMLElement, onHud: (snapshot: DrivingSnapshot) => void) {
     this.host = host; this.onHud = onHud;
@@ -382,7 +383,8 @@ export class DrivingScene {
     const delta=Math.min(this.clock.getDelta(),0.04);if(!this.ended)this.update(delta);this.renderer.render(this.scene,this.camera);
   };
   private update(delta:number) {
-    this.elapsed+=delta;this.junctionCooldown=Math.max(0,this.junctionCooldown-delta);\n    this.playerCollisionCooldown=Math.max(0,this.playerCollisionCooldown-delta);
+    this.elapsed+=delta;this.junctionCooldown=Math.max(0,this.junctionCooldown-delta);
+    this.playerCollisionCooldown=Math.max(0,this.playerCollisionCooldown-delta);
     this.speed=Math.min(TUNING.maxSpeed,this.speed+TUNING.acceleration*delta);
     const signedSpeed=this.speed*(this.input.reverse?-0.38:1)*(1-this.damage*0.004);
     const forward=Math.max(0,signedSpeed)*delta;this.distance+=forward*0.62;this.score+=forward*0.45;
@@ -392,7 +394,8 @@ export class DrivingScene {
     if(this.progress<0){this.progress=0;}
     this.battery=Math.max(0,this.battery-TUNING.drain*(0.45+Math.abs(signedSpeed)/TUNING.maxSpeed)*delta);
     this.updatePlayerPose(delta);
-    this.updateTraffic(delta);\n    for(const station of this.chargingStations){if(station.position.distanceTo(this.player.position)<4)this.battery=Math.min(100,this.battery+20*delta);}
+    this.updateTraffic(delta);
+    for(const station of this.chargingStations){if(station.position.distanceTo(this.player.position)<4)this.battery=Math.min(100,this.battery+20*delta);}
     this.hornLight.intensity=this.input.horn?4.5:THREE.MathUtils.damp(this.hornLight.intensity,0,12,delta);
     if(this.battery<=0||this.damage>=100)this.finish();
     if(this.elapsed-this.lastHudAt>=0.1){this.publish(false);this.lastHudAt=this.elapsed;}
