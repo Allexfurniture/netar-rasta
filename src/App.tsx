@@ -61,7 +61,7 @@ export default function App() {
     sceneRef.current?.setTouch(key, pressed);
   };
 
-  const bindHold = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn' | 'boost') => ({
+  const bindHold = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'brake' | 'boost') => ({
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
       event.currentTarget.setPointerCapture(event.pointerId);
       setTouch(key, true);
