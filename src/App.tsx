@@ -9,7 +9,7 @@ export default function App() {
   const sceneRef = useRef<DrivingScene | null>(null);
   const [view, setView] = useState<ViewState>('ready');
   const [sceneMounted, setSceneMounted] = useState(false);
-  const [status, setStatus] = useState<SceneStatus>({ speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0 });
+  const [status, setStatus] = useState<SceneStatus>({ speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0, battery: 100, charging: false, damage: 0, batteryEmpty: false });
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -88,10 +88,10 @@ export default function App() {
           <div className="scene-cover modal-cover">
             <div className="cover-icon" aria-hidden="true">😵</div>
             <p className="cover-kicker">CHASE ENDED</p>
-            <h2>ধরা পড়ে গেছেন!</h2>
-            <p>পেছনের দল আপনাকে ধরে ফেলেছে। পরেরবার BOOST ব্যবহার করে দূরত্ব বাড়ান।</p>
+            <h2>{status.batteryEmpty ? 'ব্যাটারি শেষ!' : 'ধরা পড়ে গেছেন!'}</h2>
+            <p>{status.batteryEmpty ? 'চার্জিং স্টেশনে না পৌঁছানোর কারণে গাড়ি থেমে গেছে।' : 'পেছনের দল আপনাকে ধরে ফেলেছে। পরেরবার BOOST ব্যবহার করে দূরত্ব বাড়ান।'}</p>
             <div className="finish-stats"><div><span>স্কোর</span><strong>{status.score.toLocaleString('bn-BD')}</strong></div><div><span>দূরত্ব</span><strong>{status.distance.toLocaleString('bn-BD')} মি</strong></div><div><span>সর্বোচ্চ গতি</span><strong>{status.maxSpeed.toLocaleString('bn-BD')} km/h</strong></div><div><span>সময়</span><strong>{Math.floor(status.elapsedSeconds / 60).toLocaleString('bn-BD')}:{String(status.elapsedSeconds % 60).padStart(2,'0')}</strong></div></div>
-            <button className="primary-button" onClick={() => { sceneRef.current?.dispose(); sceneRef.current = null; setSceneMounted(false); setStatus({ speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0 }); setView('ready'); }}>আবার খেলুন</button>
+            <button className="primary-button" onClick={() => { sceneRef.current?.dispose(); sceneRef.current = null; setSceneMounted(false); setStatus({ speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0, battery: 100, charging: false, damage: 0, batteryEmpty: false }); setView('ready'); }}>আবার খেলুন</button>
           </div>
         )}
         {view === 'victory' && (
@@ -148,6 +148,11 @@ export default function App() {
               <span>দূরত্ব</span>
               <strong>{status.distance}<small> m</small></strong>
               <div className="metric-track"><i style={{ width: Math.min(100, status.distance / 1200 * 100) + '%' }} /></div>
+            </div>
+            <div className="hud-card battery-card" aria-label="ব্যাটারি অবস্থা">
+              <span>{status.charging ? 'চার্জ হচ্ছে' : 'ব্যাটারি'}</span>
+              <strong>{status.battery}<small>%</small></strong>
+              <div className="metric-track"><i style={{ width: status.battery + '%', background: status.battery < 20 ? '#e87862' : '#c6e58c' }} /></div>
             </div>
             <div className="hud-card route-map-card" aria-label="রোড গ্রাফ মিনিম্যাপ">
               <span>রুট · {status.currentDistrict}</span>
