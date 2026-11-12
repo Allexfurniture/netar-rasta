@@ -1068,8 +1068,6 @@ export class DrivingScene {
     this.cameraLookTarget.x = THREE.MathUtils.damp(this.cameraLookTarget.x, this.player.position.x * 0.2 + cameraPreset.lookX, 3.0, dt);
     this.cameraLookTarget.y = THREE.MathUtils.damp(this.cameraLookTarget.y, cameraPreset.lookY, 2.5, dt);
     this.cameraLookTarget.z = THREE.MathUtils.damp(this.cameraLookTarget.z, cameraPreset.lookZ, 2.5, dt);
-    this.camera.fov = THREE.MathUtils.damp(this.camera.fov, cameraPreset.fov, 2.4, dt);
-    this.camera.updateProjectionMatrix();
     this.camera.lookAt(this.cameraLookTarget);
     if (this.caught || this.batteryEmpty) {
       this.onStatus({ speed: 0, maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: 0, hornFlash: false, boostActive: false, distance: Math.floor(this.distance), finished: false, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX, battery: Math.round(this.battery), charging: this.charging, damage: Math.round(this.damage), batteryEmpty: this.batteryEmpty, totalDamageCost: this.totalDamageCost, collisionCount: this.collisionCount, damageBreakdown: this.damageBreakdown });
@@ -1088,7 +1086,7 @@ export class DrivingScene {
     const width = Math.max(1, this.host.clientWidth);
     const height = Math.max(1, this.host.clientHeight);
     this.camera.aspect = width / height;
-    this.camera.fov = width < 500 ? 59 : 54;
+    this.camera.fov = this.cameraPresets[this.cameraMode].fov + (width < 500 ? 2 : 0);
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
   }
@@ -1108,6 +1106,8 @@ export class DrivingScene {
 
   setCameraMode(mode: CameraMode) {
     this.cameraMode = mode;
+    this.camera.fov = this.cameraPresets[mode].fov + (this.host.clientWidth < 500 ? 2 : 0);
+    this.camera.updateProjectionMatrix();
   }
 
   dispose() {
