@@ -710,105 +710,158 @@ export class DrivingScene {
   }
 
   private buildRickshaw() {
-    // Bangladesh-style battery electric auto-rickshaw / easybike.
-    // No bicycle frame, pedals, chain or cycle-rickshaw carriage.
-    const frame = this.material(0x245b83, 0.58);
-    const trim = this.material(0xd9c9a5, 0.48);
-    const rubber = this.material(0x202523, 0.96);
-    const glass = new THREE.MeshStandardMaterial({ color: 0x8ebbc4, roughness: 0.2, metalness: 0.12, transparent: true, opacity: 0.78 });
-    const body = this.material(0xe34d65, 0.48);
-    const accent = this.material(0xffd34f, 0.5);
-    const dark = this.material(0x343b39, 0.82);
+    // Original procedural Dhaka electric easybike. This is an in-house model,
+    // not a downloaded Sketchfab asset or a pedal/cycle rickshaw.
+    const frame = this.material(0x244f68, 0.52);
+    const body = this.material(0xd94e46, 0.48);
+    const bodyLight = this.material(0xf16b51, 0.48);
+    const accent = this.material(0xf4c64e, 0.48);
+    const cream = this.material(0xf1e6c9, 0.58);
+    const rubber = this.material(0x202522, 0.96);
+    const metal = this.material(0x8b9994, 0.42);
+    const seat = this.material(0x463a32, 0.88);
+    const dark = this.material(0x28312f, 0.86);
+    const glass = new THREE.MeshStandardMaterial({ color: 0x8fc5d0, roughness: 0.18, metalness: 0.08, transparent: true, opacity: 0.58 });
+    const skin = this.material(0xb97850);
+    const shirt = this.material(0x28664f);
 
-    const addBox = (w:number,h:number,d:number,color:THREE.Material,x:number,y:number,z:number) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),color);
+    const addBox = (w:number,h:number,d:number,mat:THREE.Material,x:number,y:number,z:number, bevel = 0) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
       mesh.position.set(x,y,z); mesh.castShadow=true; mesh.receiveShadow=true;
+      this.player.add(mesh); return mesh;
+    };
+    const addSphere = (x:number,y:number,z:number,sx:number,sy:number,sz:number,mat:THREE.Material) => {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(1,16,12),mat);
+      mesh.position.set(x,y,z); mesh.scale.set(sx,sy,sz); mesh.castShadow=true; mesh.receiveShadow=true;
       this.player.add(mesh); return mesh;
     };
     const addRod = (a:THREE.Vector3,b:THREE.Vector3,r:number,mat:THREE.Material) => {
       const delta=new THREE.Vector3().subVectors(b,a);
-      const mesh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,delta.length(),8),mat);
+      const mesh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,delta.length(),10),mat);
       mesh.position.copy(a).add(b).multiplyScalar(0.5);
       mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
       mesh.castShadow=true; this.player.add(mesh); return mesh;
     };
     const addWheel = (x:number,z:number,r:number,width:number) => {
-      const tire=new THREE.Mesh(new THREE.CylinderGeometry(r,r,width,20),rubber);
-      tire.rotation.z=Math.PI/2; tire.position.set(x,r,z); tire.castShadow=true; this.player.add(tire);
-      const hub=new THREE.Mesh(new THREE.CylinderGeometry(r*0.34,r*0.34,width+0.025,14),accent);
+      const tire=new THREE.Mesh(new THREE.CylinderGeometry(r,r,width,24),rubber);
+      tire.rotation.z=Math.PI/2; tire.position.set(x,r,z); tire.castShadow=true; tire.receiveShadow=true; this.player.add(tire);
+      const hub=new THREE.Mesh(new THREE.CylinderGeometry(r*0.38,r*0.38,width+0.035,16),accent);
       hub.rotation.z=Math.PI/2; hub.position.copy(tire.position); this.player.add(hub);
-      const rim=new THREE.Mesh(new THREE.TorusGeometry(r*0.7,0.035,7,20),trim);
+      const inner=new THREE.Mesh(new THREE.CylinderGeometry(r*0.2,r*0.2,width+0.05,12),metal);
+      inner.rotation.z=Math.PI/2; inner.position.copy(tire.position); this.player.add(inner);
+      const rim=new THREE.Mesh(new THREE.TorusGeometry(r*0.73,0.035,8,24),cream);
       rim.position.copy(tire.position); rim.rotation.y=Math.PI/2; this.player.add(rim);
       this.wheels.push(tire);
     };
+    const addFender = (x:number,z:number,r:number,width:number,mat:THREE.Material) => {
+      const arc = new THREE.Mesh(new THREE.TorusGeometry(r+0.035,0.075,8,28,Math.PI),mat);
+      arc.rotation.set(Math.PI/2,0,Math.PI);
+      arc.position.set(x,r,z);
+      arc.scale.set(1,1,width/0.15);
+      this.player.add(arc);
+    };
+    const addExtrudedSide = (x:number, mat:THREE.Material) => {
+      const shape = new THREE.Shape();
+      // Profile follows the raised rear passenger tub and sloping front footwell.
+      shape.moveTo(0.10,0.70); shape.lineTo(1.72,0.70);
+      shape.lineTo(1.72,1.52); shape.lineTo(1.48,1.58);
+      shape.lineTo(1.28,1.30); shape.lineTo(0.34,1.30);
+      shape.lineTo(0.10,1.08); shape.closePath();
+      const geo = new THREE.ExtrudeGeometry(shape,{depth:0.09,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:0.035,bevelThickness:0.035});
+      const panel = new THREE.Mesh(geo,mat);
+      panel.rotation.y=Math.PI/2;
+      panel.position.set(x,0,0);
+      panel.castShadow=true; panel.receiveShadow=true; this.player.add(panel);
+    };
 
-    // Low battery-vehicle chassis and three road wheels: one steerable front, two rear.
-    addBox(1.72,0.24,2.65,frame,0,0.62,0.12);
-    addWheel(0,-1.18,0.43,0.2);
-    addWheel(-0.91,0.91,0.48,0.2);
-    addWheel(0.91,0.91,0.48,0.2);
+    // Chassis and suspension: one front steering wheel, twin rear drive wheels.
+    addBox(1.58,0.2,2.9,frame,0,0.62,0.18);
+    addBox(1.18,0.16,1.2,dark,0,0.52,0.72);
+    addWheel(0,-1.22,0.39,0.22);
+    addWheel(-0.88,0.94,0.45,0.22);
+    addWheel(0.88,0.94,0.45,0.22);
+    addFender(0,-1.22,0.43,0.22,body);
+    addFender(-0.88,0.94,0.49,0.22,body);
+    addFender(0.88,0.94,0.49,0.22,body);
+    addRod(new THREE.Vector3(0,0.7,-1.22),new THREE.Vector3(0,1.22,-0.95),0.075,metal);
+    addRod(new THREE.Vector3(-0.88,0.68,0.94),new THREE.Vector3(-0.58,0.82,0.56),0.055,metal);
+    addRod(new THREE.Vector3(0.88,0.68,0.94),new THREE.Vector3(0.58,0.82,0.56),0.055,metal);
 
-    // Front nose, bumper, fender, twin lamps and broad windscreen.
-    addBox(1.35,0.94,0.34,body,0,1.05,-1.18);
-    addBox(1.48,0.13,0.22,accent,0,0.66,-1.37);
-    addBox(1.2,0.08,0.18,trim,0,0.72,-1.39);
-    const windshield=addBox(1.28,0.78,0.055,glass,0,1.72,-1.08);
-    windshield.rotation.x=-0.12;
-    addRod(new THREE.Vector3(-0.72,1.28,-1.08),new THREE.Vector3(-0.72,2.08,-1.08),0.045,frame);
-    addRod(new THREE.Vector3(0.72,1.28,-1.08),new THREE.Vector3(0.72,2.08,-1.08),0.045,frame);
+    // Sculpted front nose and mudguard, with layered painted fascia.
+    addSphere(0,1.03,-1.02,0.72,0.48,0.38,body);
+    addSphere(0,1.19,-1.18,0.63,0.3,0.22,bodyLight);
+    addBox(1.32,0.12,0.16,accent,0,0.77,-1.37);
+    addBox(1.08,0.07,0.12,cream,0,0.69,-1.39);
+    addBox(0.72,0.16,0.07,dark,0,0.95,-1.405);
     for(const x of [-0.48,0.48]){
-      const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.13,12,10),this.material(0xffe7a5,0.28));
-      lamp.position.set(x,1.05,-1.38); this.player.add(lamp);
-      const indicator=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.1,0.08),this.material(0xf0a33c));
-      indicator.position.set(x*1.45,0.98,-1.39); this.player.add(indicator);
+      const lamp=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,0.075,16),cream);
+      lamp.rotation.x=Math.PI/2; lamp.position.set(x,1.12,-1.39); this.player.add(lamp);
+      const lens=new THREE.Mesh(new THREE.CircleGeometry(0.105,16),this.material(0xfff3c2,0.22));
+      lens.position.set(x,1.12,-1.435); this.player.add(lens);
+      addBox(0.13,0.09,0.08,this.material(0xffa13a),x*1.45,0.98,-1.39);
     }
-    // Handlebar steering assembly; deliberately no pedals or bicycle chain.
-    addRod(new THREE.Vector3(0,1.55,-1.0),new THREE.Vector3(0,1.88,-0.92),0.055,trim);
-    addRod(new THREE.Vector3(-0.42,1.88,-0.92),new THREE.Vector3(0.42,1.88,-0.92),0.045,frame);
-
-    // Driver's enclosed/semi-open front cockpit and seat.
-    addBox(0.78,0.16,0.62,dark,0,1.12,-0.42);
-    const driverBody=new THREE.Mesh(new THREE.CapsuleGeometry(0.25,0.48,4,8),this.material(0x2c6c55));
-    driverBody.position.set(0,1.55,-0.48); driverBody.rotation.x=-0.12; this.player.add(driverBody);
-    const head=new THREE.Mesh(new THREE.SphereGeometry(0.22,14,12),this.material(0xb97850));
-    head.position.set(0,2.0,-0.62); this.player.add(head);
-    const hair=new THREE.Mesh(new THREE.SphereGeometry(0.22,12,8),dark);
-    hair.scale.set(1,0.48,0.95); hair.position.set(0,2.12,-0.61); this.player.add(hair);
-    addRod(new THREE.Vector3(-0.2,1.68,-0.52),new THREE.Vector3(-0.38,1.82,-0.9),0.065,this.material(0xb97850));
-    addRod(new THREE.Vector3(0.2,1.68,-0.52),new THREE.Vector3(0.38,1.82,-0.9),0.065,this.material(0xb97850));
-
-    // Rear passenger compartment: solid lower body, open side windows, bench and roof.
-    addBox(1.88,0.72,1.72,body,0,1.08,0.88);
-    addBox(1.72,0.16,1.42,this.material(0x563c30),0,1.5,0.92);
-    addBox(1.78,0.14,1.82,accent,0,1.84,0.88);
-    addBox(1.78,0.12,1.82,this.material(0x168c82,0.48),0,2.65,0.88);
-    // Bright painted canopy stripes make the player vehicle easy to identify.
-    for (let stripe = 0; stripe < 7; stripe++) {
-      const stripeMat = this.material([0xffd34f,0xf5f0dc,0x2c78b7,0xf5f0dc,0x65b96d,0xf5f0dc,0xff8a42][stripe],0.52);
-      addBox(0.19,0.025,1.7,stripeMat,-0.72 + stripe * 0.24,2.724,0.88);
+    // Windscreen and roofed driver canopy.
+    const windshield=new THREE.Mesh(new THREE.PlaneGeometry(1.18,0.72),glass);
+    windshield.position.set(0,1.77,-0.91); windshield.rotation.x=-0.12; this.player.add(windshield);
+    for(const x of [-0.66,0.66]){
+      addRod(new THREE.Vector3(x,1.25,-0.98),new THREE.Vector3(x,2.18,-0.78),0.045,frame);
     }
-    // Roof supports and open passenger windows are characteristic of local easybikes.
+    addRod(new THREE.Vector3(-0.66,2.18,-0.78),new THREE.Vector3(0.66,2.18,-0.78),0.045,accent);
+    addBox(1.56,0.11,0.52,accent,0,2.22,-0.63);
+    addRod(new THREE.Vector3(0,1.55,-0.9),new THREE.Vector3(0,1.91,-0.77),0.055,metal);
+    addRod(new THREE.Vector3(-0.43,1.91,-0.77),new THREE.Vector3(0.43,1.91,-0.77),0.045,dark);
+
+    // Driver seat, torso, head, arms and simple clothing details.
+    addBox(0.72,0.16,0.56,seat,0,1.1,-0.36);
+    const driver=new THREE.Mesh(new THREE.CapsuleGeometry(0.23,0.48,4,8),shirt);
+    driver.position.set(0,1.55,-0.43); driver.rotation.x=-0.12; this.player.add(driver);
+    addSphere(0,1.98,-0.58,0.19,0.22,0.19,skin);
+    addSphere(0,2.1,-0.57,0.2,0.11,0.2,dark);
+    addRod(new THREE.Vector3(-0.18,1.7,-0.45),new THREE.Vector3(-0.39,1.88,-0.78),0.065,skin);
+    addRod(new THREE.Vector3(0.18,1.7,-0.45),new THREE.Vector3(0.39,1.88,-0.78),0.065,skin);
+
+    // Rear passenger cabin: deep lower tub, open window apertures, rails and roof.
+    addBox(1.82,0.58,1.76,body,0,1.0,0.88);
+    addExtrudedSide(-0.88,bodyLight);
+    addExtrudedSide(0.79,body);
+    addBox(1.65,0.12,1.45,seat,0,1.43,0.93);
+    addBox(1.7,0.12,1.78,accent,0,1.61,0.88);
+    // Three open passenger window bays per side, framed by slim metal pillars.
     for(const x of [-0.82,0.82]){
-      addRod(new THREE.Vector3(x,1.42,0.02),new THREE.Vector3(x,2.65,0.02),0.045,frame);
-      addRod(new THREE.Vector3(x,1.42,1.72),new THREE.Vector3(x,2.65,1.72),0.045,frame);
-      addRod(new THREE.Vector3(x,2.65,0.02),new THREE.Vector3(x,2.65,1.72),0.045,accent);
-      addBox(0.08,0.48,1.5,trim,x,1.95,0.88);
+      addRod(new THREE.Vector3(x,1.56,0.08),new THREE.Vector3(x,2.53,0.08),0.045,frame);
+      addRod(new THREE.Vector3(x,1.56,0.86),new THREE.Vector3(x,2.53,0.86),0.045,frame);
+      addRod(new THREE.Vector3(x,1.56,1.65),new THREE.Vector3(x,2.53,1.65),0.045,frame);
+      addRod(new THREE.Vector3(x,2.53,0.08),new THREE.Vector3(x,2.53,1.65),0.045,accent);
+      addRod(new THREE.Vector3(x,1.58,0.08),new THREE.Vector3(x,1.58,1.65),0.04,cream);
+      addBox(0.08,0.52,1.42,cream,x,1.98,0.88);
     }
-    // Rear bench and seat back visible through the passenger opening.
-    addBox(1.45,0.16,0.52,this.material(0x6d4936),0,1.72,1.05);
-    addBox(1.48,0.5,0.14,this.material(0x704a37),0,1.98,1.62);
-    // Decorative front roof visor, rear lamps and side running boards.
-    addBox(1.96,0.12,0.36,accent,0,2.62,-0.98);
-    addBox(0.16,0.22,0.08,this.material(0xc84638),-0.82,1.02,1.78);
-    addBox(0.16,0.22,0.08,this.material(0xc84638),0.82,1.02,1.78);
-    addBox(0.18,0.12,1.48,frame,-1.0,0.58,0.82);
-    addBox(0.18,0.12,1.48,frame,1.0,0.58,0.82);
-    // Small side mirrors.
+    // Curved-looking canopy made from a shallow domed shell and painted edge trim.
+    addSphere(0,2.56,0.9,1.02,0.15,1.04,this.material(0x16877e,0.5));
+    addBox(1.98,0.1,1.94,accent,0,2.54,0.9);
+    for(let stripe=0;stripe<8;stripe++){
+      const stripeMat=this.material([0xffd34f,0xf6ead1,0x2876ad,0xf6ead1,0x61aa70,0xf6ead1,0xe45b43,0xf6ead1][stripe],0.48);
+      addBox(0.2,0.025,1.76,stripeMat,-0.7+stripe*0.2,2.61,0.9);
+    }
+    // Passenger bench, backrest, rear step and tail-light cluster.
+    addBox(1.42,0.15,0.5,seat,0,1.48,1.12);
+    addBox(1.45,0.42,0.13,seat,0,1.77,1.66);
+    addBox(1.2,0.1,0.34,frame,0,0.64,1.88);
+    for(const x of [-0.72,0.72]){
+      addBox(0.16,0.2,0.08,this.material(0xc94439),x,1.03,1.79);
+      addBox(0.1,0.12,0.08,cream,x,0.83,1.8);
+    }
+    // Side mirrors, indicators, grab rails and ornamental pinstripes.
     for(const x of [-0.76,0.76]){
-      addRod(new THREE.Vector3(x,1.72,-0.95),new THREE.Vector3(x*1.18,2.02,-0.88),0.025,frame);
-      const mirror=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.13,0.06),trim);
-      mirror.position.set(x*1.18,2.04,-0.88); this.player.add(mirror);
+      addRod(new THREE.Vector3(x,1.77,-0.82),new THREE.Vector3(x*1.2,2.06,-0.7),0.025,frame);
+      addSphere(x*1.2,2.08,-0.7,0.12,0.085,0.045,metal);
+      addRod(new THREE.Vector3(x,1.28,0.02),new THREE.Vector3(x,1.28,1.62),0.025,accent);
+      addBox(0.055,0.06,1.25,cream,x*1.02,1.22,0.84);
     }
+    // Distinctive Bangladesh easybike side decals and front registration plate.
+    addBox(0.06,0.18,0.68,accent,-0.94,1.13,0.86);
+    addBox(0.06,0.18,0.68,accent,0.94,1.13,0.86);
+    addBox(0.56,0.19,0.035,cream,0,0.86,-1.43);
+    addBox(0.34,0.035,0.04,dark,0,0.86,-1.46);
   }
 
   private update(dt: number) {
