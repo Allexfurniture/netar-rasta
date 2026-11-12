@@ -21,7 +21,7 @@ button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .hud-card>span{display:block;color:#c4d4c7;font-size:10px}
 .hud-card strong{display:block;margin-top:1px;color:#f4f7ef;font:800 20px Manrope,sans-serif}
 .hud-card strong small{font-size:9px;color:#c0d0c3;font-weight:500}
-.steering-card{min-width:76px}.steering-card strong{font-size:16px}
+.steering-card{min-width:76px}.steering-card strong{font-size:16px}.route-map-card{min-width:82px;padding:6px 8px}.route-map-card>span{white-space:nowrap}
 .metric-track{height:4px;margin-top:5px;overflow:hidden;border-radius:10px;background:#526354}
 .metric-track i{display:block;height:100%;border-radius:10px;background:#c6e58c;transition:width .12s linear}
 .keyboard-hint{position:absolute;z-index:4;left:50%;bottom:calc(95px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:12px;align-items:center;padding:7px 11px;border:1px solid #ffffff2c;border-radius:12px;background:#10231bc9;color:#dce7dd;font-size:10px;white-space:nowrap;backdrop-filter:blur(8px)}
@@ -51,7 +51,7 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
  .game-brand strong{font-size:13px}.game-brand small{font-size:9px}
  .game-hud{top:calc(max(51px,env(safe-area-inset-top) + 44px));left:max(9px,env(safe-area-inset-left));gap:6px}
  .hud-card{min-width:76px;padding:6px 9px;border-radius:10px}.hud-card strong{font-size:18px}
- .steering-card{min-width:66px}.steering-card strong{font-size:15px}
+ .steering-card{min-width:66px}.steering-card strong{font-size:15px}.route-map-card{min-width:70px;padding:5px 6px}.route-map-card svg{width:54px!important;height:80px!important}
  .touch-controls{bottom:max(10px,env(safe-area-inset-bottom));gap:6px;padding-right:max(9px,env(safe-area-inset-right));padding-left:max(9px,env(safe-area-inset-left))}
  .control-cluster{gap:6px}
  .touch-controls button{width:clamp(43px,13vw,56px);height:clamp(43px,13vw,56px);border-radius:14px}
