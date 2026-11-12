@@ -95,7 +95,11 @@ Traffic, engine, horn, boost, collision, and pursuit reaction sound effects are 
 
 ### 3D presentation
 - Fully 3D road surfaces, curbs, sidewalks, buildings, landmarks, rickshaw, traffic, pedestrians, and charging stations.
-- Stylized, colorful, cartoon-like city art with non-graphic character reactions.
+- Art direction is stylized 3D cartoon realism: recognizable real-world Bangladeshi cycle-rickshaw proportions and decoration, expressive driver/pedestrian characters, saturated but balanced colors, detailed street furniture, and non-graphic reactions.
+- The player rickshaw must read clearly as a Bangladesh pedal rickshaw: single bicycle front wheel/fork/handlebar, twin rear carriage wheels, passenger seat/body, decorated fabric canopy, metal frame, headlamp, mudguards, painted motifs, and a visible driver.
+- Streets must feel inhabited, not like empty box-building corridors: varied shopfronts with Bengali signboards, awnings, balconies, windows, roadside stalls, trees, utility poles/wires, street lamps, buses, cars, CNGs, motorcycles, other rickshaws, and pedestrians.
+- Buildings must have varied silhouettes and facade details; avoid repeated plain cuboids as the dominant visual element.
+- Use a warm Dhaka daylight palette, readable road markings, sidewalks, curbs, crossings, and recognizable roadside clutter while preserving mobile performance.
 - Use level-of-detail, frustum culling, pooled traffic entities, and restrained shadow quality to preserve mobile frame rate.
 - Target a stable 30 FPS baseline on supported mid-range mobile devices; higher refresh rates are optional and require device testing.
 - WebGL is required. If unavailable, show a clear Bengali compatibility message rather than a blank screen.
@@ -234,11 +238,11 @@ Do not silently promote prototype tuning values to final game balance.
 
 The current Three.js prototype renders the starter connected road graph as 3D road ribbons, follows graph edges in a third-person chase camera, selects connected roads at junctions, and displays a persistent Bengali minimap driven by the same graph coordinates. Traffic now includes pooled-at-startup prototype agents representing buses, cars, CNGs, rickshaws, and motorcycles. Each agent follows directed graph edges, selects a connected outgoing edge at junctions, maintains a basic same-edge following headway, uses a lane offset, and participates in rate-limited player collision handling. Basic landmark props, touch/keyboard controls, provisional driving balance, battery HUD, and start/Game Over screens remain.
 
-It is not the completed game. Outstanding work:
+It is not the completed game. The initial visual blockout has been upgraded with a detailed procedural Bangladesh cycle-rickshaw silhouette, visible driver, decorated canopy, varied shopfront facades, roadside trees/stalls, and illustrative traffic/pedestrian set dressing. These are still prototype geometry, not final production art. Outstanding work:
 - Replace the straight prototype corridor with the full connected 3D road graph.
 - Implement junction turns and a persistent minimap.
 - Build final Farmgate, Shahbagh, Dhanmondi, Parliament landmark, bus stops, and decorative signals.
-- Refine the initial road-graph traffic AI with hands-on validation, improved vehicle art, lane discipline at junctions, and more robust multi-agent collision avoidance.
+- Replace procedural blockout vehicle/character meshes with quality production assets or artist-authored models; refine traffic AI with hands-on validation, lane discipline at junctions, and robust multi-agent collision avoidance.
 - Add pedestrians, 5–10 chaser pursuit, and caught/escape outcomes.
 - Replace provisional collision and battery values with approved balancing.
 - Implement exact 5-second charging rule with map-based station radius.
@@ -266,6 +270,7 @@ It is not the completed game. Outstanding work:
 - Confirmed product requirements and exclusions remain binding.
 - On 2026-11-12, the product owner replaced Endless Survival with a finite Route Run featuring a finish-line Victory condition; being caught before the finish line is a failure.
 - On 2026-11-12, touch controls were confirmed as on-screen buttons only; no steering wheel or virtual joystick.
+- On 2026-11-12, the product owner rejected the plain blockout visuals and requested a lively, recognizable, Dhaka-inspired 3D cartoon scene and a more authentic Bangladesh rickshaw; this visual direction is now explicit.
 - TBD gameplay values remain open until approved.
 - Supabase migrations, schema changes, and production database actions require explicit authorization.
 - Development work stays on a feature branch and is reviewed through a pull request.
