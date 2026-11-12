@@ -39,6 +39,8 @@ export class InputController {
     else this.touch.delete(key);
   }
 
+  clear() { this.onBlur(); }
+
   consume(): InputSnapshot {
     const left = this.keys.has('arrowleft') || this.keys.has('a') || this.touch.has('left');
     const right = this.keys.has('arrowright') || this.keys.has('d') || this.touch.has('right');
