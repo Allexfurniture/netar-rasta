@@ -8,7 +8,19 @@ export type DrivingSnapshot = {
 };
 export type DrivingInput = { left: boolean; right: boolean; forward: boolean; reverse: boolean; horn: boolean };
 const TUNING = { baseSpeed: 12, maxSpeed: 24, acceleration: 0.22, drain: 0.22, collisionDamage: 18, mapScale: 150, roadWidthScale: 150 };
-type TrafficActor = { mesh: THREE.Group; road: RoadRuntime; progress: number; speed: number; hit: boolean };
+type VehicleKind = 'bus' | 'car' | 'cng' | 'rickshaw' | 'motorcycle';
+type TrafficActor = {
+  mesh: THREE.Group;
+  road: RoadRuntime;
+  progress: number;
+  cruiseSpeed: number;
+  currentSpeed: number;
+  kind: VehicleKind;
+  laneOffset: number;
+  halfLength: number;
+  hit: boolean;
+  routeBias: number;
+};
 type RoadRuntime = { road: DirectedRoad; points: Point2D[]; lengths: number[]; total: number };
 
 export class DrivingScene {
@@ -40,7 +52,7 @@ export class DrivingScene {
   private mapPoint: Point2D = { x: 0.16, y: 0.18 };
   private district = 'ফার্মগেট';
   private junctionCooldown = 0;
-  private roadMaterials: THREE.MeshStandardMaterial[] = [];
+  private roadMaterials: THREE.MeshStandardMaterial[] = [];\n  private playerCollisionCooldown = 0;
 
   constructor(host: HTMLElement, onHud: (snapshot: DrivingSnapshot) => void) {
     this.host = host; this.onHud = onHud;
@@ -188,18 +200,155 @@ export class DrivingScene {
     for(const pos of [[-0.77,0.42,-0.72],[0.77,0.42,-0.72],[0,0.42,1.02]] as const){const wheel=new THREE.Mesh(wheelGeo,black);wheel.rotation.z=Math.PI/2;wheel.position.set(pos[0],pos[1],pos[2]);this.player.add(wheel);}
     this.player.position.set(0,0,0);this.scene.add(this.player);
   }
-  private makeTrafficVehicle(color:number) {
-    const group=new THREE.Group();const body=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.1,2.8),new THREE.MeshStandardMaterial({color,roughness:0.75}));
-    body.position.y=0.85;body.castShadow=true;group.add(body);
-    const roof=new THREE.Mesh(new THREE.BoxGeometry(1.35,0.65,1.5),new THREE.MeshStandardMaterial({color:0x9eb7bc}));roof.position.set(0,1.6,0);group.add(roof);return group;
+  private makeTrafficVehicle(kind: VehicleKind, color: number) {
+    const group = new THREE.Group();
+    const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.78 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x202626, roughness: 0.9 });
+    const glass = new THREE.MeshStandardMaterial({ color: 0x9eb7bc, roughness: 0.42, metalness: 0.08 });
+    const dimensions: Record<VehicleKind, { width: number; length: number; height: number }> = {
+      bus: { width: 2.35, length: 7.2, height: 2.9 },
+      car: { width: 1.8, length: 3.8, height: 1.45 },
+      cng: { width: 1.45, length: 2.5, height: 1.85 },
+      rickshaw: { width: 1.35, length: 2.3, height: 1.9 },
+      motorcycle: { width: 0.75, length: 1.8, height: 1.2 },
+    };
+    const size = dimensions[kind];
+    const body = new THREE.Mesh(new THREE.BoxGeometry(size.width, size.height * 0.56, size.length), paint);
+    body.position.y = size.height * 0.34;
+    body.castShadow = true;
+    group.add(body);
+    if (kind !== 'motorcycle') {
+      const cabin = new THREE.Mesh(
+        new THREE.BoxGeometry(size.width * 0.82, size.height * 0.42, size.length * (kind === 'bus' ? 0.7 : 0.48)),
+        glass,
+      );
+      cabin.position.set(0, size.height * 0.72, kind === 'bus' ? -0.15 : -0.12);
+      group.add(cabin);
+    } else {
+      const rider = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 8), dark);
+      rider.position.set(0, size.height * 0.78, -0.05);
+      group.add(rider);
+    }
+    const wheelRadius = kind === 'bus' ? 0.48 : 0.28;
+    const wheelGeometry = new THREE.CylinderGeometry(wheelRadius, wheelRadius, 0.16, 10);
+    const wheelPositions = kind === 'motorcycle'
+      ? [[-0.38, wheelRadius, -size.length * 0.34], [0.38, wheelRadius, size.length * 0.34]]
+      : [[-size.width * 0.48, wheelRadius, -size.length * 0.3], [size.width * 0.48, wheelRadius, -size.length * 0.3], [-size.width * 0.48, wheelRadius, size.length * 0.3], [size.width * 0.48, wheelRadius, size.length * 0.3]];
+    for (const position of wheelPositions) {
+      const wheel = new THREE.Mesh(wheelGeometry, dark);
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(position[0], position[1], position[2]);
+      group.add(wheel);
+    }
+    return { mesh: group, halfLength: size.length * 0.5 };
   }
+
   private addTraffic() {
-    const candidates=this.roads.filter(r=>r.road.edge.id!=='farmgate-crossing');
-    const colors=[0xc74d3e,0xd6a93d,0x397da5,0x4b6657,0x9c9c91,0x8c5940];
-    for(let i=0;i<9;i++){
-      const road=candidates[i%candidates.length];const mesh=this.makeTrafficVehicle(colors[i%colors.length]);
-      const progress=0.18+(i%4)*0.19;const sample=this.sample(road,progress);mesh.position.copy(sample.position);mesh.position.y=0;mesh.rotation.y=Math.atan2(sample.tangent.x,sample.tangent.z);this.scene.add(mesh);
-      this.traffic.push({mesh,road,progress,speed:0.025+(i%3)*0.008,hit:false});
+    const kinds: VehicleKind[] = ['bus', 'car', 'cng', 'rickshaw', 'motorcycle', 'car', 'cng', 'bus', 'rickshaw', 'motorcycle', 'car', 'cng'];
+    const colors = [0xc74d3e, 0xd6a93d, 0x397da5, 0x4b6657, 0x9c9c91, 0x8c5940];
+    const directedRoads = this.graph.edges.flatMap((edge) => {
+      const forward: DirectedRoad = { edge, from: edge.from, to: edge.to, reversed: false };
+      const roads = [this.makeRoadRuntime(forward)];
+      if (edge.bidirectional) {
+        roads.push(this.makeRoadRuntime({ edge, from: edge.to, to: edge.from, reversed: true }));
+      }
+      return roads;
+    });
+    for (let i = 0; i < kinds.length; i += 1) {
+      const road = directedRoads[(i * 5 + 2) % directedRoads.length];
+      const kind = kinds[i];
+      const vehicle = this.makeTrafficVehicle(kind, colors[i % colors.length]);
+      const progress = 0.12 + ((i * 17) % 65) / 100;
+      const pose = this.sample(road, progress);
+      const laneOffset = road.road.edge.width * TUNING.roadWidthScale > 9 ? (road.road.reversed ? -1.65 : 1.65) : 0.9;
+      const side = new THREE.Vector3(pose.tangent.z, 0, -pose.tangent.x);
+      vehicle.mesh.position.copy(pose.position).addScaledVector(side, laneOffset);
+      vehicle.mesh.rotation.y = Math.atan2(pose.tangent.x, pose.tangent.z) + Math.PI;
+      this.scene.add(vehicle.mesh);
+      const cruiseSpeed = kind === 'bus' ? 5.2 : kind === 'motorcycle' ? 9.2 : kind === 'cng' ? 6.6 : kind === 'rickshaw' ? 5.8 : 8;
+      this.traffic.push({
+        mesh: vehicle.mesh,
+        road,
+        progress,
+        cruiseSpeed,
+        currentSpeed: cruiseSpeed,
+        kind,
+        laneOffset,
+        halfLength: vehicle.halfLength,
+        hit: false,
+        routeBias: ((i % 3) - 1) * 0.65,
+      });
+    }
+  }
+
+  private chooseTrafficRoad(actor: TrafficActor): RoadRuntime | null {
+    const nodeId = actor.road.road.to;
+    const choices = getAvailableRoads(this.graph, nodeId).filter(
+      (choice) => !(choice.edge.id === actor.road.road.edge.id && choice.to === actor.road.road.from),
+    );
+    const candidates = choices.length > 0
+      ? choices
+      : getAvailableRoads(this.graph, nodeId);
+    if (candidates.length === 0) return null;
+    const previous = this.sample(actor.road, 1).tangent;
+    const scored = candidates.map((choice) => {
+      const runtime = this.makeRoadRuntime(choice);
+      const next = this.sample(runtime, 0.02).tangent;
+      const cross = previous.x * next.z - previous.z * next.x;
+      const dot = previous.dot(next);
+      const stableTieBreak = ((choice.edge.id.length + actor.routeBias * 10) % 7) * 0.001;
+      return { runtime, score: dot * 0.35 + cross * actor.routeBias + stableTieBreak };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0].runtime;
+  }
+
+  private updateTraffic(delta: number) {
+    // Follow the nearest same-direction vehicle with a speed headway; agents stay on graph edges.
+    for (const actor of this.traffic) {
+      let targetSpeed = actor.cruiseSpeed;
+      const roadLength = actor.road.total * TUNING.mapScale;
+      let nearestGap = Number.POSITIVE_INFINITY;
+      for (const other of this.traffic) {
+        if (other === actor || other.road.road.edge.id !== actor.road.road.edge.id
+          || other.road.road.from !== actor.road.road.from) continue;
+        const gap = (other.progress - actor.progress) * roadLength - actor.halfLength - other.halfLength;
+        if (gap > 0 && gap < nearestGap) nearestGap = gap;
+      }
+      if (nearestGap < 12) {
+        targetSpeed = Math.min(targetSpeed, Math.max(2.2, (nearestGap - 1.5) * 0.75));
+      }
+      actor.currentSpeed = THREE.MathUtils.damp(actor.currentSpeed, targetSpeed, 2.8, delta);
+      actor.progress += actor.currentSpeed * delta / Math.max(1, roadLength);
+      if (actor.progress >= 1) {
+        const overflow = actor.progress - 1;
+        const nextRoad = this.chooseTrafficRoad(actor);
+        if (nextRoad) {
+          actor.road = nextRoad;
+          actor.progress = Math.min(overflow, 0.015);
+          actor.laneOffset = nextRoad.road.reversed ? -Math.abs(actor.laneOffset) : Math.abs(actor.laneOffset);
+        } else {
+          actor.progress = 0.98;
+          actor.currentSpeed = 0;
+        }
+      }
+      const pose = this.sample(actor.road, actor.progress);
+      const side = new THREE.Vector3(pose.tangent.z, 0, -pose.tangent.x);
+      actor.mesh.position.copy(pose.position).addScaledVector(side, actor.laneOffset);
+      actor.mesh.position.y = 0;
+      actor.mesh.rotation.y = Math.atan2(pose.tangent.x, pose.tangent.z) + Math.PI;
+
+      const contactDistance = actor.halfLength * 0.35 + 1.2;
+      const distanceToPlayer = actor.mesh.position.distanceTo(this.player.position);
+      if (distanceToPlayer < contactDistance && !actor.hit) {
+        actor.hit = true;
+        if (this.playerCollisionCooldown <= 0) {
+          this.damage = Math.min(100, this.damage + TUNING.collisionDamage);
+          this.playerCollisionCooldown = 1.25;
+        }
+      } else if (distanceToPlayer > contactDistance + 3.5) {
+        actor.hit = false;
+      }
     }
   }
   private updatePlayerPose(delta:number) {
@@ -233,7 +382,7 @@ export class DrivingScene {
     const delta=Math.min(this.clock.getDelta(),0.04);if(!this.ended)this.update(delta);this.renderer.render(this.scene,this.camera);
   };
   private update(delta:number) {
-    this.elapsed+=delta;this.junctionCooldown=Math.max(0,this.junctionCooldown-delta);
+    this.elapsed+=delta;this.junctionCooldown=Math.max(0,this.junctionCooldown-delta);\n    this.playerCollisionCooldown=Math.max(0,this.playerCollisionCooldown-delta);
     this.speed=Math.min(TUNING.maxSpeed,this.speed+TUNING.acceleration*delta);
     const signedSpeed=this.speed*(this.input.reverse?-0.38:1)*(1-this.damage*0.004);
     const forward=Math.max(0,signedSpeed)*delta;this.distance+=forward*0.62;this.score+=forward*0.45;
@@ -243,15 +392,7 @@ export class DrivingScene {
     if(this.progress<0){this.progress=0;}
     this.battery=Math.max(0,this.battery-TUNING.drain*(0.45+Math.abs(signedSpeed)/TUNING.maxSpeed)*delta);
     this.updatePlayerPose(delta);
-    for(const actor of this.traffic){
-      actor.progress+=actor.speed*delta;
-      if(actor.progress>1)actor.progress=0;
-      const pose=this.sample(actor.road,actor.progress);actor.mesh.position.copy(pose.position);actor.mesh.position.y=0;
-      actor.mesh.rotation.y=Math.atan2(pose.tangent.x,pose.tangent.z);
-      if(!actor.hit&&actor.mesh.position.distanceTo(this.player.position)<2.2){actor.hit=true;this.damage=Math.min(100,this.damage+TUNING.collisionDamage);}
-      if(actor.mesh.position.distanceTo(this.player.position)>8)actor.hit=false;
-    }
-    for(const station of this.chargingStations){if(station.position.distanceTo(this.player.position)<4)this.battery=Math.min(100,this.battery+20*delta);}
+    this.updateTraffic(delta);\n    for(const station of this.chargingStations){if(station.position.distanceTo(this.player.position)<4)this.battery=Math.min(100,this.battery+20*delta);}
     this.hornLight.intensity=this.input.horn?4.5:THREE.MathUtils.damp(this.hornLight.intensity,0,12,delta);
     if(this.battery<=0||this.damage>=100)this.finish();
     if(this.elapsed-this.lastHudAt>=0.1){this.publish(false);this.lastHudAt=this.elapsed;}
