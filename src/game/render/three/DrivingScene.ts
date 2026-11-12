@@ -358,7 +358,7 @@ export class DrivingScene {
     const hair=new THREE.Mesh(new THREE.SphereGeometry(0.22,12,8),dark);
     hair.scale.set(1,0.48,0.95); hair.position.set(0,2.12,-0.61); this.player.add(hair);
     addRod(new THREE.Vector3(-0.2,1.68,-0.52),new THREE.Vector3(-0.38,1.82,-0.9),0.065,this.material(0xb97850));
-    addRod(new THREE.Vector3(0.2,1.68,-0.52),new THREE.Vector3(0.38,1.82,-0.9),0.065,this.material(0xb97850);
+    addRod(new THREE.Vector3(0.2,1.68,-0.52),new THREE.Vector3(0.38,1.82,-0.9),0.065,this.material(0xb97850));
 
     // Rear passenger compartment: solid lower body, open side windows, bench and roof.
     addBox(1.88,0.72,1.72,body,0,1.08,0.88);
