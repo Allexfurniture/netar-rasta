@@ -9,7 +9,7 @@ export default function App() {
   const sceneRef = useRef<DrivingScene | null>(null);
   const [view, setView] = useState<ViewState>('ready');
   const [sceneMounted, setSceneMounted] = useState(false);
-  const [status, setStatus] = useState<SceneStatus>({ speed: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0 });
+  const [status, setStatus] = useState<SceneStatus>({ speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0 });
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -90,7 +90,8 @@ export default function App() {
             <p className="cover-kicker">CHASE ENDED</p>
             <h2>ধরা পড়ে গেছেন!</h2>
             <p>পেছনের দল আপনাকে ধরে ফেলেছে। পরেরবার BOOST ব্যবহার করে দূরত্ব বাড়ান।</p>
-            <button className="primary-button" onClick={() => { sceneRef.current?.dispose(); sceneRef.current = null; setSceneMounted(false); setStatus({ speed: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0 }); setView('ready'); }}>আবার খেলুন</button>
+            <div className="finish-stats"><div><span>স্কোর</span><strong>{status.score.toLocaleString('bn-BD')}</strong></div><div><span>দূরত্ব</span><strong>{status.distance.toLocaleString('bn-BD')} মি</strong></div><div><span>সর্বোচ্চ গতি</span><strong>{status.maxSpeed.toLocaleString('bn-BD')} km/h</strong></div><div><span>সময়</span><strong>{Math.floor(status.elapsedSeconds / 60).toLocaleString('bn-BD')}:{String(status.elapsedSeconds % 60).padStart(2,'0')}</strong></div></div>
+            <button className="primary-button" onClick={() => { sceneRef.current?.dispose(); sceneRef.current = null; setSceneMounted(false); setStatus({ speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0 }); setView('ready'); }}>আবার খেলুন</button>
           </div>
         )}
         {view === 'victory' && (
@@ -98,7 +99,8 @@ export default function App() {
             <div className="cover-icon" aria-hidden="true">🏁</div>
             <p className="cover-kicker">ROUTE COMPLETE</p>
             <h2>অভিনন্দন! ফিনিশ লাইন পার হয়েছেন</h2>
-            <p>আপনার পরীক্ষামূলক Route Run সম্পন্ন হয়েছে।</p>
+            <p>আপনার Route Run সম্পন্ন হয়েছে।</p>
+            <div className="finish-stats"><div><span>মোট স্কোর</span><strong>{status.score.toLocaleString('bn-BD')}</strong></div><div><span>দূরত্ব</span><strong>{status.distance.toLocaleString('bn-BD')} মি</strong></div><div><span>সর্বোচ্চ গতি</span><strong>{status.maxSpeed.toLocaleString('bn-BD')} km/h</strong></div><div><span>সময়</span><strong>{Math.floor(status.elapsedSeconds / 60).toLocaleString('bn-BD')}:{String(status.elapsedSeconds % 60).padStart(2,'0')}</strong></div></div>
             <button className="primary-button" onClick={() => { sceneRef.current?.dispose(); sceneRef.current = null; setSceneMounted(false); setView('ready'); }}>আবার খেলুন</button>
           </div>
         )}
