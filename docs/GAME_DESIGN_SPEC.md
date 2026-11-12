@@ -23,9 +23,9 @@ The selected visual direction is a fully 3D world viewed from a third-person dri
 - One battery-powered electric auto-rickshaw (Bangladesh-style easybike) is available at the start.
 - Rickshaw colors may vary; the selection interaction is TBD.
 - Speed increases as the run continues; final speed curve is TBD.
-- Touch controls are button-only: LEFT, RIGHT, GO, REV, HORN, and BOOST. Do not render a steering wheel or virtual joystick.
-- LEFT/RIGHT buttons steer; GO accelerates; REV reverses; HORN triggers the horn; BOOST temporarily increases speed while held/active.
-- Desktop keyboard support remains available for testing.
+- Touch controls are button-only with six Bengali controls: চলুন, ব্রেক, টান, পিছনে, বামে, ডানে. Do not render a steering wheel or virtual joystick.
+- চলুন accelerates; ব্রেক decelerates to a stop; টান maps to BOOST; পিছনে reverses along the connected road graph; বামে/ডানে steer. Horn remains available through Space on desktop testing and is not one of the six touch HUD controls.
+- Desktop keyboard support remains available for testing: arrows for steering/forward/reverse, X for brake, Shift for টান/BOOST, and Space for horn.
 - Damage reduces rickshaw speed.
 - Vehicle movement is constrained to the road network. The player can turn at junctions but cannot drive freely off-road.
 
