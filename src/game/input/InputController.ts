@@ -2,12 +2,13 @@ export type InputSnapshot = Readonly<{
   steer: number;
   accelerate: boolean;
   reverse: boolean;
+  brake: boolean;
   horn: boolean;
   boost: boolean;
   pause: boolean;
 }>;
 
-type TouchKey = 'left' | 'right' | 'accelerate' | 'reverse' | 'horn' | 'boost';
+type TouchKey = 'left' | 'right' | 'accelerate' | 'reverse' | 'brake' | 'boost';
 
 export class InputController {
   private readonly keys = new Set<string>();
@@ -18,7 +19,7 @@ export class InputController {
 
   private readonly onKeyDown = (event: KeyboardEvent) => {
     const key = event.key.toLowerCase();
-    if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' ', 'escape', 'shift'].includes(key)) event.preventDefault();
+    if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' ', 'escape', 'shift', 'x'].includes(key)) event.preventDefault();
     if (key === ' ' && !this.keys.has(key)) this.hornPressed = true;
     if (key === 'escape' && !this.keys.has(key)) this.pausePressed = true;
     this.keys.add(key);
@@ -47,11 +48,13 @@ export class InputController {
     const right = this.keys.has('arrowright') || this.keys.has('d') || this.touch.has('right');
     const accelerate = this.keys.has('arrowup') || this.keys.has('w') || this.touch.has('accelerate');
     const reverse = this.keys.has('arrowdown') || this.keys.has('s') || this.touch.has('reverse');
+    const brake = this.keys.has('x') || this.touch.has('brake');
     const boost = this.keys.has('shift') || this.touch.has('boost');
     const snapshot = {
       steer: Number(right) - Number(left),
       accelerate,
       reverse,
+      brake,
       horn: this.hornPressed || this.touch.has('horn'),
       boost,
       pause: this.pausePressed,
