@@ -530,9 +530,10 @@ export class DrivingScene {
     this.wheelRotation += this.speed * dt * 1.7;
     this.wheels.forEach(wheel => { wheel.rotation.x = this.wheelRotation; });
     const travel = this.speed * dt;
-    this.roadState = advanceRoad(this.roadState, travel, controls.steer);
-    this.distance = this.roadState.distance;
-    this.roadX = this.roadState.x;
+    const roadProgress = advanceRoad(this.roadState, travel, controls.steer);
+    this.roadState = roadProgress;
+    this.distance = roadProgress.distance;
+    this.roadX = roadProgress.x;
     this.currentDistrict = this.distance < 112 ? 'ফার্মগেট' : this.distance < 202 ? 'শাহবাগ' : 'ধানমন্ডি';
     this.player.position.x = THREE.MathUtils.damp(this.player.position.x, this.roadX, 8, dt);
     this.finishLine.position.z += travel;
