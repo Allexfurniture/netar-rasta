@@ -61,6 +61,14 @@ export default function App() {
   }, [view]);
 
   useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && view === 'running') setView('paused');
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [view]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === 'escape' && view === 'running') setView('paused');
       else if (event.key.toLowerCase() === 'escape' && view === 'paused') setView('running');
@@ -178,8 +186,7 @@ export default function App() {
             <p>গেম থামানো আছে। প্রস্তুত হলে আবার চালু করুন।</p>
             <div className="pause-actions">
               <button className="primary-button" onClick={() => setView('running')}>▶ আবার চালু করুন</button>
-              <button className="secondary-button" onClick={resetGame}>নতুন করে শুরু</button>
-              <button className="text-button" onClick={resetGame}>হোমে ফিরে যান</button>
+              <button className="secondary-button" onClick={resetGame}>হোমে ফিরে যান</button>
             </div>
           </div>
         )}
