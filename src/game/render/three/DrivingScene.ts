@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { GameLoop } from '../../core/GameLoop';
 import { InputController, type InputSnapshot } from '../../input/InputController';
-import { advanceRoad, createRoadState, type RoadState } from '../../world/RoadGraph';
+import { advanceRoad, createRoadState, type RoadAdvance, type RoadState } from '../../world/RoadGraph';
 
 export type SceneStatus = { speed: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; currentDistrict: string; roadX: number };
+type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
+type TrafficAgent = { kind: TrafficKind; group: THREE.Group; state: RoadAdvance; cruiseSpeed: number; currentSpeed: number; routeBias: -1 | 0 | 1; lane: number; halfWidth: number; halfLength: number; overlapping: boolean };
 
 export class DrivingScene {
   private readonly scene = new THREE.Scene();
@@ -14,6 +16,8 @@ export class DrivingScene {
   private readonly player = new THREE.Group();
   private readonly wheels: THREE.Mesh[] = [];
   private readonly movingWorld: THREE.Object3D[] = [];
+  private readonly trafficAgents: TrafficAgent[] = [];
+  private collisionShake = 0;
   private readonly clockLight = new THREE.PointLight(0xffd28a, 0, 8);
   private readonly finishLine = new THREE.Group();
   private distance = 0;
@@ -304,8 +308,7 @@ export class DrivingScene {
 
 
   private buildStreetTraffic() {
-    type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
-    const vehicle = (kind: TrafficKind, x: number, z: number, color: number) => {
+    const vehicle = (kind: TrafficKind, color: number) => {
       const group = new THREE.Group();
       const bodyMat = this.material(color, 0.58);
       const glassMat = new THREE.MeshStandardMaterial({ color: 0x8db9c1, roughness: 0.22, metalness: 0.1 });
@@ -367,18 +370,90 @@ export class DrivingScene {
           for (const wx of [-0.82,0.82]) for (const wz of [-length*0.32,length*0.32]) wheel(wx,wz,0.34);
         }
       }
-      group.position.set(x,0,z);
-      this.scene.add(group); this.movingWorld.push(group);
+      this.scene.add(group);
+      return group;
     };
-    const traffic: [TrafficKind,number,number,number][] = [
-      ['bus',-3.1,-48,0x287b70], ['car',3.0,-66,0xe0a13d],
-      ['auto',-3.0,-102,0x16845e], ['cng',3.1,-126,0x18875d],
-      ['bike',-2.8,-146,0xc84b3e], ['rickshaw',3.0,-184,0x2d8c63],
-      ['car',-3.2,-202,0x547ca0], ['bus',3.0,-230,0xd2a04f],
-      ['auto',-3.0,-258,0xb74c42], ['cng',3.0,-282,0x277e68],
-      ['rickshaw',-3.0,-306,0x2f9366], ['bike',3.0,-330,0xc84b3e],
+    // A fixed-size pool of graph-routed agents. Each agent owns a graph state,
+    // a legal route preference, lane offset, speed profile and rectangular collider.
+    const traffic: Array<{kind:TrafficKind;distance:number;color:number;speed:number;route:-1|0|1;lane:number}> = [
+      {kind:'bus',distance:38,color:0x287b70,speed:8.2,route:0,lane:-1.65},
+      {kind:'car',distance:62,color:0xe0a13d,speed:10.4,route:1,lane:1.65},
+      {kind:'auto',distance:88,color:0x16845e,speed:7.6,route:-1,lane:-1.55},
+      {kind:'cng',distance:116,color:0x18875d,speed:9.3,route:1,lane:1.55},
+      {kind:'bike',distance:145,color:0xc84b3e,speed:12.2,route:0,lane:-1.55},
+      {kind:'rickshaw',distance:174,color:0x2d8c63,speed:6.8,route:-1,lane:1.55},
+      {kind:'car',distance:204,color:0x547ca0,speed:10.8,route:1,lane:-1.65},
+      {kind:'bus',distance:234,color:0xd2a04f,speed:7.9,route:0,lane:1.65},
+      {kind:'auto',distance:264,color:0xb74c42,speed:8.7,route:-1,lane:-1.55},
+      {kind:'cng',distance:294,color:0x277e68,speed:9.8,route:1,lane:1.55},
+      {kind:'rickshaw',distance:324,color:0x2f9366,speed:6.9,route:0,lane:-1.55},
+      {kind:'bike',distance:354,color:0xc84b3e,speed:11.8,route:-1,lane:1.55},
     ];
-    traffic.forEach(([kind,x,z,color]) => vehicle(kind,x,z,color));
+    const dimensions: Record<TrafficKind,{halfWidth:number;halfLength:number}> = {
+      bus:{halfWidth:1.42,halfLength:3.15}, car:{halfWidth:1.02,halfLength:1.75},
+      cng:{halfWidth:0.82,halfLength:1.45}, bike:{halfWidth:0.42,halfLength:0.9},
+      auto:{halfWidth:0.94,halfLength:1.35}, rickshaw:{halfWidth:0.96,halfLength:1.25},
+    };
+    traffic.forEach((spec) => {
+      const group = vehicle(spec.kind,spec.color);
+      const state = advanceRoad(createRoadState(),spec.distance,spec.route);
+      const size = dimensions[spec.kind];
+      const agent: TrafficAgent = {
+        kind:spec.kind,group,state,cruiseSpeed:spec.speed,currentSpeed:spec.speed,
+        routeBias:spec.route,lane:spec.lane,halfWidth:size.halfWidth,halfLength:size.halfLength,overlapping:false,
+      };
+      this.trafficAgents.push(agent);
+      group.position.set(state.x + spec.lane,0,this.distance - state.distance);
+    });
+  }
+
+  private updateTraffic(dt: number) {
+    // Compute headway against the previous simulation snapshot before advancing agents.
+    const targetSpeeds = this.trafficAgents.map(agent => {
+      let nearestGap = Number.POSITIVE_INFINITY;
+      let leadSpeed = agent.cruiseSpeed;
+      for (const other of this.trafficAgents) {
+        if (other === agent) continue;
+        const gap = other.state.distance - agent.state.distance;
+        if (gap > 0 && gap < nearestGap && Math.abs(other.state.x + other.lane - agent.state.x - agent.lane) < 2.65) {
+          nearestGap = gap;
+          leadSpeed = other.currentSpeed;
+        }
+      }
+      if (nearestGap < 7.5) {
+        const safeSpeed = leadSpeed * Math.max(0.25, (nearestGap - 1.8) / 5.7);
+        return Math.min(agent.cruiseSpeed, safeSpeed);
+      }
+      return agent.cruiseSpeed;
+    });
+
+    this.trafficAgents.forEach((agent,index) => {
+      agent.currentSpeed = THREE.MathUtils.damp(agent.currentSpeed,targetSpeeds[index],2.8,dt);
+      const previousX = agent.state.x;
+      agent.state = advanceRoad(agent.state,agent.currentSpeed * dt,agent.routeBias);
+      const dx = agent.state.x - previousX;
+      agent.group.rotation.y = -Math.atan2(dx,Math.max(0.001,agent.currentSpeed * dt));
+      agent.group.position.set(agent.state.x + agent.lane,0,this.distance - agent.state.distance);
+
+      // Recycle the pooled agent after it falls well behind, or reaches the route end.
+      if (agent.state.distance < this.distance - 52 || agent.state.distance > this.prototypeRouteLength - 18) {
+        const spawnDistance = Math.min(this.prototypeRouteLength - 30,this.distance + 170 + index * 13);
+        agent.state = advanceRoad(createRoadState(),spawnDistance,agent.routeBias);
+        agent.currentSpeed = agent.cruiseSpeed;
+        agent.overlapping = false;
+        agent.group.position.set(agent.state.x + agent.lane,0,this.distance - agent.state.distance);
+      }
+
+      // Axis-aligned vehicle footprint; trigger only on contact entry, not every frame.
+      const overlaps = Math.abs(agent.group.position.z) < 1.42 + agent.halfLength
+        && Math.abs(agent.group.position.x - this.player.position.x) < 0.98 + agent.halfWidth;
+      if (overlaps && !agent.overlapping) {
+        agent.overlapping = true;
+        this.collisionShake = 0.24;
+      } else if (!overlaps) {
+        agent.overlapping = false;
+      }
+    });
   }
 
   private buildSidewalkCrowd() {
@@ -536,6 +611,7 @@ export class DrivingScene {
     this.roadX = roadProgress.x;
     this.currentDistrict = this.distance < 112 ? 'ফার্মগেট' : this.distance < 202 ? 'শাহবাগ' : 'ধানমন্ডি';
     this.player.position.x = THREE.MathUtils.damp(this.player.position.x, this.roadX, 8, dt);
+    this.updateTraffic(dt);
     this.finishLine.position.z += travel;
     this.movingWorld.forEach(object => {
       object.position.z += travel;
@@ -543,7 +619,9 @@ export class DrivingScene {
     });
     this.hornTime = controls.horn ? 0.24 : Math.max(0, this.hornTime - dt);
     this.clockLight.intensity = this.hornTime > 0 ? 2.5 : 0;
-    this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.player.position.x * 0.36, 2.2, dt);
+    this.collisionShake = Math.max(0,this.collisionShake - dt);
+    const shake = this.collisionShake > 0 ? Math.sin(this.wheelRotation * 3.2) * this.collisionShake * 0.22 : 0;
+    this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.player.position.x * 0.36, 2.2, dt) + shake;
     this.camera.lookAt(this.player.position.x * 0.18, 1.15, -5);
     if (this.distance >= this.prototypeRouteLength) {
       this.finished = true;
