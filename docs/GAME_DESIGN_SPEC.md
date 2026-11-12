@@ -3,7 +3,7 @@
 **Product:** নেতার রাস্তা (Netar Rasta)  
 **Status:** 3D direction approved; prototype implementation in progress  
 **Platform:** Mobile-first browser game  
-**Mode:** Endless Survival  
+**Mode:** Finish Line Route Run  
 **Language:** Bengali only  
 **Rendering:** Real-time 3D  
 **Camera:** Third-person chase camera behind the player's rickshaw  
@@ -13,7 +13,7 @@ This specification separates approved product requirements from unresolved balan
 
 ## 1. Product definition
 
-A free-to-play, single-player browser game in which a guest player drives a rickshaw through a fictional Dhaka-inspired city and attempts to survive for as long as possible. The game targets portrait mobile browsers first, with desktop keyboard support for development and play.
+A free-to-play, single-player browser game in which a guest player drives a rickshaw through a fictional Dhaka-inspired city and attempts to complete a defined route and reach its finish line before the pursuers catch the driver. The game targets portrait mobile browsers first, with desktop keyboard support for development and play.
 
 The selected visual direction is a fully 3D world viewed from a third-person driving camera behind the rickshaw. This is a true 3D scene, not a 2D scene with perspective styling.
 
@@ -23,7 +23,9 @@ The selected visual direction is a fully 3D world viewed from a third-person dri
 - One rickshaw is available at the start.
 - Rickshaw colors may vary; the selection interaction is TBD.
 - Speed increases as the run continues; final speed curve is TBD.
-- Controls include steering, forward acceleration, reverse, and horn.
+- Touch controls are button-only: LEFT, RIGHT, GO, REV, HORN, and BOOST. Do not render a steering wheel or virtual joystick.
+- LEFT/RIGHT buttons steer; GO accelerates; REV reverses; HORN triggers the horn; BOOST temporarily increases speed while held/active.
+- Desktop keyboard support remains available for testing.
 - Damage reduces rickshaw speed.
 - Vehicle movement is constrained to the road network. The player can turn at junctions but cannot drive freely off-road.
 
@@ -42,7 +44,7 @@ The selected visual direction is a fully 3D world viewed from a third-person dri
 - Collision severity affects the reaction and damage.
 - Crowd pursuit uses 5–10 chasers.
 - The player can escape by driving faster.
-- If caught, show a cartoon, non-graphic confrontation and then Game Over.
+- If caught before reaching the finish line, show a cartoon, non-graphic confrontation and then Game Over.
 - No graphic violence or gore.
 
 ### Battery and charging
@@ -56,6 +58,8 @@ The selected visual direction is a fully 3D world viewed from a third-person dri
 
 ### Score and run summary
 - Display the score with the ৳ symbol and BDT label.
+- Award a configurable virtual BDT score for eligible vehicle collision events; persistent overlap must not repeatedly farm rewards. Collision reward eligibility, cooldown, and amount are TBD.
+- Reaching the designated finish line ends the run successfully and shows a Victory result. Being caught before the finish line, battery depletion, or an approved failure condition ends the run unsuccessfully.
 - Virtual BDT is score only and has no real-world monetary value.
 - It cannot be spent, transferred, withdrawn, purchased, or exchanged.
 - Retain the score after Game Over.
@@ -78,7 +82,7 @@ Do not add unless the product owner changes the requirements:
 - Mandatory registration before play.
 - Additional game modes.
 
-Traffic and ambient sound effects are in scope. No audio assets have been supplied yet. Horn audio remains to be implemented when an approved sound asset is available.
+Traffic, engine, horn, boost, collision, and pursuit reaction sound effects are in scope. No audio assets have been supplied; original WebAudio-generated effects may be used, initialized only after a user gesture. No background music.
 
 ## 4. Camera and visual direction
 
@@ -98,15 +102,15 @@ Traffic and ambient sound effects are in scope. No audio assets have been suppli
 
 ## 5. Core gameplay loop
 
-1. Guest starts an Endless Survival run.
+1. Guest starts a Route Run with a defined finish line.
 2. Player drives the rickshaw along connected 3D roads.
 3. Traffic and roadside pedestrians create navigation and collision pressure.
 4. Speed and distance influence battery drain.
 5. Player reaches roadside charging stations and receives automatic charging while in range.
 6. Collisions increase damage; damage reduces available speed.
 7. A pursuit event may begin; the player attempts to escape using speed and road navigation.
-8. Battery depletion, being caught, or the approved damage failure condition ends the run.
-9. Game Over displays final score, virtual BDT, and maximum distance.
+8. Reaching the finish line ends the run as Victory; being caught before the finish line, battery depletion, or the approved damage failure condition ends it as Game Over.
+9. Victory/Game Over displays final score, virtual BDT, and maximum distance.
 10. Guest may submit a server-validated score to the cloud leaderboard.
 
 ## 6. Runtime state model
@@ -120,7 +124,7 @@ Use explicit states rather than loosely coupled booleans.
 | CHARGING | Charging station is actively charging | PLAYING, PURSUIT, GAME_OVER |
 | PURSUIT | Chasers are active; escape/caught rules are evaluated | PLAYING, GAME_OVER |
 | PAUSED | Simulation and timers are frozen | Previous active state |
-| GAME_OVER | Run finalized; result values immutable | READY / restart |
+| VICTORY | Finish line reached; result values immutable | READY / restart |\n| GAME_OVER | Run failed; result values immutable | READY / restart |
 
 CHARGING and PURSUIT may be orthogonal gameplay flags layered over PLAYING if that keeps the runtime simpler. Observable behavior must remain deterministic.
 
@@ -182,7 +186,7 @@ Collision handling distinguishes severity. Damage affects rickshaw performance. 
 Battery drain depends on speed and distance. Charging starts automatically within station radius and takes exactly 5 seconds from 0% to 100% when uninterrupted. Leaving the radius, charging while moving, and multiple-station behavior require explicit rules and tests.
 
 ### 9.6 Score
-Score and virtual BDT are the same non-monetary run score unless explicitly revised. The scoring curve must be deterministic and server-verifiable. No spending or conversion path may exist.
+Score and virtual BDT are the same non-monetary run score unless explicitly revised. The scoring curve must be deterministic and server-verifiable. Eligible vehicle collisions may award virtual BDT with anti-farming cooldown/unique-event handling. No spending or conversion path may exist.
 
 ### 9.7 Guest and leaderboard
 - Guest play starts without a registration form.
@@ -218,7 +222,7 @@ Score and virtual BDT are the same non-monetary run score unless explicitly revi
 | Charging interruption | Whether charge pauses immediately outside radius; whether driving remains enabled |
 | Pursuit trigger | Time-, collision-, or distance-based trigger |
 | Pursuit tuning | Chaser count within 5–10, chase speed, catch distance, escape duration/speed |
-| Score curve | Contribution of distance, survival time, and other approved events |
+| Score curve | Contribution of distance, survival time, and eligible collision rewards |\n| BOOST tuning | Speed multiplier/increment, activation behavior, duration, cooldown, and energy interaction |\n| Route finish | Route path, finish-line location, and any route checkpoint rules |\n| Collision rewards | Eligible vehicle contact classes, reward amount, cooldown, and anti-farming validation |\n| Audio | Original/supplied sound design, levels, and mobile performance |
 | Pause/resume | Pause availability and browser backgrounding behavior |
 | Guest lifecycle | Guest ID/session lifetime and refresh/device behavior |
 | Leaderboard policy | Submission limits, display name rules, ranking period, tie-breaker |
@@ -238,27 +242,30 @@ It is not the completed game. Outstanding work:
 - Add pedestrians, 5–10 chaser pursuit, and caught/escape outcomes.
 - Replace provisional collision and battery values with approved balancing.
 - Implement exact 5-second charging rule with map-based station radius.
-- Add horn and traffic sound effects when assets are supplied.
+- Add horn, engine, traffic pass-by, collision, boost, and pursuit reaction sound effects.
 - Implement guest sessions, cloud leaderboard, and server-side score validation.
 - Complete mobile browser QA, performance profiling, and accessibility checks.
 
 ## 13. Development sequence
 
 1. Complete the Three.js third-person vertical slice and validate build/runtime.
-2. Convert the connected road graph into 3D road geometry and implement junction navigation.
-3. Implement minimap and final city layout/landmarks.
-4. Implement traffic AI, pedestrians, collision severity, and damage effects.
-5. Implement battery and map-based charging stations.
-6. Implement pursuit, escape, and caught/Game Over behavior.
-7. Approve and implement final score/balance values.
-8. Implement guest identity and backend-validated leaderboard.
-9. Add audio assets and optimize mobile performance.
-10. Run automated tests, device QA, and deployment verification.
+2. Define the Route Run path, finish-line trigger, button-only touch control layout, BOOST behavior, and Victory/Game Over transitions.
+3. Convert the connected road graph into 3D road geometry and implement junction navigation.
+4. Implement minimap and final city layout/landmarks.
+5. Implement traffic AI, pedestrians, collision severity, damage effects, and collision score rewards.
+6. Implement battery and map-based charging stations.
+7. Implement pursuit, escape, caught/Game Over, and finish-line Victory behavior.
+8. Approve and implement final score/balance values.
+9. Implement guest identity and backend-validated leaderboard.
+10. Add audio assets/generated effects and optimize mobile performance.
+11. Run automated tests, device QA, and deployment verification.
 
 ## 14. Change control
 
 - Third-person 3D camera and Three.js rendering direction are approved.
 - Confirmed product requirements and exclusions remain binding.
+- On 2026-11-12, the product owner replaced Endless Survival with a finite Route Run featuring a finish-line Victory condition; being caught before the finish line is a failure.
+- On 2026-11-12, touch controls were confirmed as on-screen buttons only; no steering wheel or virtual joystick.
 - TBD gameplay values remain open until approved.
 - Supabase migrations, schema changes, and production database actions require explicit authorization.
 - Development work stays on a feature branch and is reviewed through a pull request.
