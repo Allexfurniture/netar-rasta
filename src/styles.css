@@ -100,3 +100,83 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
   .keyboard-hint { display: none; }
   .provisional-note { bottom: calc(145px + env(safe-area-inset-bottom)); left: 12px; right: auto; max-width: 58%; }
 }
+
+
+/* Refined driving HUD: distinct steering pad and compact 2x2 action pad. */
+.touch-controls{
+  align-items:flex-end;
+  gap:clamp(10px,3vw,24px);
+  padding-left:max(14px,env(safe-area-inset-left));
+  padding-right:max(14px,env(safe-area-inset-right));
+}
+.touch-controls .steering-controls{
+  flex-direction:row;
+  align-items:center;
+  gap:9px;
+  padding:7px;
+  border:1px solid #d5e5d044;
+  border-radius:20px;
+  background:linear-gradient(145deg,#10251fe8,#0b1714d9);
+  box-shadow:0 8px 24px #0006,inset 0 1px #ffffff18;
+  backdrop-filter:blur(12px);
+}
+.touch-controls .action-controls{
+  gap:8px;
+  padding:8px;
+  border:1px solid #d5e5d044;
+  border-radius:20px;
+  background:linear-gradient(145deg,#10251fe8,#0b1714d9);
+  box-shadow:0 8px 24px #0006,inset 0 1px #ffffff18;
+  backdrop-filter:blur(12px);
+}
+.touch-controls button{
+  width:clamp(48px,6.4vw,62px);
+  height:clamp(48px,6.4vw,62px);
+  border-radius:16px;
+  border:1px solid #d0e1d055;
+  box-shadow:0 4px 12px #0005,inset 0 1px #ffffff1c;
+  font-size:13px;
+  font-weight:700;
+}
+.touch-controls .direction-control{
+  position:relative;
+  width:clamp(54px,7vw,66px);
+  height:clamp(54px,7vw,66px);
+  padding-top:12px;
+  border-color:#9db9a6a8;
+  border-radius:17px;
+  background:linear-gradient(155deg,#29483a,#142b23);
+  font-size:12px;
+}
+.touch-controls .direction-control::before{
+  position:absolute;
+  top:3px;
+  font:700 17px/1 Manrope,sans-serif;
+  color:#d9edc9;
+}
+.touch-controls .direction-control[aria-label="বামে"]::before{content:"←";}
+.touch-controls .direction-control[aria-label="ডানে"]::before{content:"→";}
+.touch-controls .go-control,
+.touch-controls .boost-control{width:clamp(58px,7.5vw,70px);height:clamp(52px,6.8vw,62px)}
+.touch-controls .brake-control,
+.touch-controls .reverse-control{width:clamp(58px,7.5vw,70px);height:clamp(48px,6.2vw,58px)}
+.touch-controls .go-control{background:linear-gradient(145deg,#d8f3aa,#b9dc7e);color:#1c3424}
+.touch-controls .brake-control{background:linear-gradient(145deg,#88483a,#603027)}
+.touch-controls .boost-control{background:linear-gradient(145deg,#80511f,#543313)}
+.touch-controls .reverse-control{background:linear-gradient(145deg,#38577e,#253a59)}
+.touch-controls button:focus-visible{outline:3px solid #f5d27d;outline-offset:2px}
+@media(max-width:600px){
+  .touch-controls{gap:7px;padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
+  .touch-controls .steering-controls{gap:6px;padding:6px;border-radius:17px}
+  .touch-controls .action-controls{gap:6px;padding:6px;border-radius:17px}
+  .touch-controls .direction-control{width:clamp(48px,14vw,58px);height:clamp(50px,14vw,60px);border-radius:14px}
+  .touch-controls .go-control,.touch-controls .boost-control{width:clamp(54px,16vw,66px);height:clamp(49px,14vw,58px)}
+  .touch-controls .brake-control,.touch-controls .reverse-control{width:clamp(54px,16vw,66px);height:clamp(45px,13vw,54px)}
+}
+@media(max-width:360px){
+  .touch-controls{gap:5px;padding-left:5px;padding-right:5px}
+  .touch-controls .steering-controls,.touch-controls .action-controls{gap:4px;padding:4px}
+  .touch-controls .direction-control{width:45px;height:48px}
+  .touch-controls .go-control,.touch-controls .boost-control{width:51px;height:47px}
+  .touch-controls .brake-control,.touch-controls .reverse-control{width:51px;height:43px}
+}
