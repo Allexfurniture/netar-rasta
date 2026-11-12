@@ -57,6 +57,51 @@ export class DrivingScene {
     return mesh;
   }
 
+  private streetSign(label: string, x: number, y: number, z: number, background = '#17664f') {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = background; ctx.fillRect(0, 0, 512, 128);
+      ctx.strokeStyle = '#f4d78b'; ctx.lineWidth = 9; ctx.strokeRect(7, 7, 498, 114);
+      ctx.fillStyle = '#fff7df'; ctx.font = 'bold 62px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, 256, 66);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 0.95), material);
+    sign.position.set(x, y, z);
+    this.scene.add(sign); this.movingWorld.push(sign);
+    return sign;
+  }
+
+  private buildJunctionSet(z: number, district: string, color: number) {
+    const crossRoad = new THREE.Mesh(new THREE.PlaneGeometry(34, 13), this.material(0x464947, 0.98));
+    crossRoad.rotation.x = -Math.PI / 2; crossRoad.position.set(0, 0.012, z);
+    this.scene.add(crossRoad); this.movingWorld.push(crossRoad);
+    for (let i = 0; i < 9; i++) {
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.035, 5.2), this.material(0xf3ead4));
+      stripe.position.set(-5.4 + i * 1.35, 0.045, z - 1.4);
+      this.scene.add(stripe); this.movingWorld.push(stripe);
+    }
+    this.streetSign(district, -7.2, 4.8, z - 6, '#174f3d');
+    // Signal poles and three signal lamps on both corners.
+    for (const side of [-1, 1]) {
+      const pole = this.box(0.14, 4.6, 0.14, 0x424b48, side * 8.2, 2.3, z - 4);
+      this.scene.add(pole); this.movingWorld.push(pole);
+      const housing = this.box(0.42, 1.15, 0.32, 0x242a28, side * 8.2, 4.45, z - 4);
+      this.scene.add(housing); this.movingWorld.push(housing);
+      [0xe34c3d, 0xe9bd4b, 0x54a66b].forEach((lampColor, i) => {
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), this.material(lampColor, 0.35));
+        lamp.position.set(side * 8.2, 4.78 - i * 0.34, z - 3.8);
+        this.scene.add(lamp); this.movingWorld.push(lamp);
+      });
+    }
+    const island = this.box(1.15, 0.2, 7.8, color, 0, 0.12, z + 5.2);
+    this.scene.add(island); this.movingWorld.push(island);
+  }
+
   private buildWorld() {
     this.scene.background = new THREE.Color(0x9bc9d4);
     this.scene.fog = new THREE.Fog(0x9bc9d4, 85, 260);
@@ -187,6 +232,41 @@ export class DrivingScene {
       this.scene.add(parkedWheel); this.movingWorld.push(parkedWheel);
     }
 
+
+    // Repeating Dhaka-style junctions give the route a recognizable urban rhythm.
+    this.buildJunctionSet(-70, 'ফার্মগেট', 0xd7b15e);
+    this.buildJunctionSet(-158, 'শাহবাগ', 0x5d9b79);
+    this.buildJunctionSet(-246, 'ধানমন্ডি', 0xb96b54);
+
+    // Overhead utility cables and roadside Bengali wayfinding signs.
+    for (let i = 0; i < 8; i++) {
+      const z = -22 - i * 29;
+      const cable = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.018, 22, 5),
+        this.material(0x343a37, 0.9)
+      );
+      cable.rotation.z = Math.PI / 2;
+      cable.position.set(0, 7.4 + (i % 2) * 0.35, z);
+      this.scene.add(cable); this.movingWorld.push(cable);
+    }
+
+    // Stylized National Parliament landmark silhouette in the distant roadside skyline.
+    const parliament = new THREE.Group();
+    const stone = this.material(0xc8bda4);
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(12, 1.1, 7), stone);
+    plinth.position.y = 0.55; parliament.add(plinth);
+    const hall = new THREE.Mesh(new THREE.BoxGeometry(8.5, 4.8, 5.2), stone);
+    hall.position.y = 3.3; parliament.add(hall);
+    const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 2.6, 3.2, 8, 1), this.material(0x8c9a91));
+    dome.position.y = 7.2; parliament.add(dome);
+    for (let i = 0; i < 6; i++) {
+      const column = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 3.6, 8), stone);
+      column.position.set(-4.4 + i * 1.75, 2.8, -2.75); parliament.add(column);
+    }
+    parliament.position.set(-21, 0, -218);
+    this.scene.add(parliament); this.movingWorld.push(parliament);
+    this.streetSign('জাতীয় সংসদ ভবন', -14.5, 5.2, -215, '#315c87');
+
     this.buildStreetTraffic();
     this.buildSidewalkCrowd();
     this.buildRickshaw();
@@ -202,53 +282,81 @@ export class DrivingScene {
 
 
   private buildStreetTraffic() {
-    const vehicle = (kind: 'car' | 'cng' | 'bus' | 'bike', x: number, z: number, color: number) => {
+    type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
+    const vehicle = (kind: TrafficKind, x: number, z: number, color: number) => {
       const group = new THREE.Group();
-      const bodyMat = this.material(color,0.62);
-      const glassMat = new THREE.MeshStandardMaterial({color:0x8db9c1,roughness:0.24,metalness:0.12});
-      const black = this.material(0x202522,0.96);
+      const bodyMat = this.material(color, 0.58);
+      const glassMat = new THREE.MeshStandardMaterial({ color: 0x8db9c1, roughness: 0.22, metalness: 0.1 });
+      const black = this.material(0x202522, 0.96);
+      const chrome = this.material(0xb9c4bb, 0.42);
       const addBox = (w:number,h:number,d:number,c:THREE.Material,px:number,py:number,pz:number) => {
-        const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),c);
-        mesh.position.set(px,py,pz); mesh.castShadow=true; group.add(mesh); return mesh;
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),c);
+        mesh.position.set(px,py,pz); mesh.castShadow = true; group.add(mesh); return mesh;
       };
-      if(kind==='bus'){
+      const wheel = (wx:number,wz:number,r=0.32) => {
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.18,14),black);
+        tire.rotation.z = Math.PI/2; tire.position.set(wx,r,wz); group.add(tire);
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(r*0.35,r*0.35,0.2,10),chrome);
+        hub.rotation.z = Math.PI/2; hub.position.copy(tire.position); group.add(hub);
+      };
+      if (kind === 'bus') {
         addBox(2.7,2.45,6.2,bodyMat,0,1.45,0);
         addBox(2.58,0.92,5.8,glassMat,0,2.05,-0.05);
         addBox(2.78,0.18,6.25,this.material(0xf1d79a),0,0.48,0);
-        for(let row=0;row<2;row++) for(let col=0;col<5;col++){
-          addBox(0.42,0.56,0.045,glassMat,(col-2)*0.48,1.85+row*0.7,-3.12);
+        addBox(2.72,0.32,0.12,this.material(0x273d39),0,2.72,-3.12);
+        for (let col=0; col<6; col++) addBox(0.36,0.58,0.05,glassMat,(col-2.5)*0.43,1.9,-3.13);
+        for (const wx of [-1.18,1.18]) for (const wz of [-2.0,2.0]) wheel(wx,wz,0.42);
+      } else if (kind === 'bike') {
+        wheel(0,-0.78,0.31); wheel(0,0.82,0.31);
+        addBox(0.32,0.5,1.05,bodyMat,0,0.82,0);
+        addBox(0.54,0.12,0.42,black,0,1.13,0.18);
+        addBox(0.52,0.09,0.08,chrome,0,1.25,-0.48);
+      } else if (kind === 'auto') {
+        // Battery-powered three-wheeler / easybike with roof and rear passenger bay.
+        addBox(1.58,0.68,2.55,bodyMat,0,0.82,0.1);
+        addBox(1.48,0.72,1.08,glassMat,0,1.55,-0.62);
+        addBox(1.78,0.14,2.35,this.material(0xe8d5a0),0,2.12,0.25);
+        addBox(1.5,0.1,1.0,this.material(0x4c514b),0,1.32,0.78);
+        wheel(0,-1.05,0.38); wheel(-0.78,0.82,0.4); wheel(0.78,0.82,0.4);
+        for (const wx of [-0.72,0.72]) {
+          const support = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.92,7),chrome);
+          support.position.set(wx,1.62,0.72); group.add(support);
         }
-      } else if(kind==='bike') {
-        const wheel=(wx:number,wz:number)=>{
-          const m=new THREE.Mesh(new THREE.TorusGeometry(0.34,0.075,8,18),black);
-          m.position.set(wx,0.36,wz); m.rotation.y=Math.PI/2; group.add(m);
-        };
-        wheel(0,-0.8); wheel(0,0.85);
-        addBox(0.34,0.55,1.15,bodyMat,0,0.86,0);
-        addBox(0.58,0.14,0.48,this.material(0x252321),0,1.2,0.2);
-        addBox(0.52,0.1,0.08,this.material(0xbcc7bd),0,1.3,-0.48);
+      } else if (kind === 'rickshaw') {
+        // Pedal rickshaw used as ambient traffic, visually distinct from the player's easybike.
+        wheel(0,-1.12,0.34); wheel(-0.78,0.78,0.4); wheel(0.78,0.78,0.4);
+        addBox(1.58,0.52,1.5,this.material(0xc84e42),0,0.96,0.78);
+        addBox(1.55,0.12,1.62,this.material(0x267e59),0,1.72,0.72);
+        addBox(1.1,0.08,0.78,this.material(0xe8bd58),0,1.82,0.72);
+        addBox(0.5,0.72,0.44,this.material(0x286b55),0,1.2,-0.42);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.16,10,8),this.material(0xb97850));
+        head.position.set(0,1.7,-0.46); group.add(head);
       } else {
-        const length=kind==='cng'?2.7:3.4;
-        addBox(kind==='cng'?1.55:1.9,0.82,length,bodyMat,0,0.78,0.1);
-        addBox(kind==='cng'?1.5:1.78,0.82,length*0.56,glassMat,0,1.48,-0.12);
-        addBox(1.85,0.16,0.18,this.material(0xe9d7a9),0,0.38,-length*0.42);
-        for(const wx of [-0.82,0.82]) for(const wz of [-length*0.32,length*0.32]){
-          const tire=new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.34,0.18,14),black);
-          tire.rotation.z=Math.PI/2; tire.position.set(wx,0.36,wz); group.add(tire);
-          const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.2,10),this.material(0xb5b8a8));
-          hub.rotation.z=Math.PI/2; hub.position.copy(tire.position); group.add(hub);
+        const length = kind === 'cng' ? 2.7 : 3.4;
+        if (kind === 'cng') {
+          addBox(1.5,0.72,length,bodyMat,0,0.78,0.1);
+          addBox(1.42,0.74,length*0.54,glassMat,0,1.48,-0.12);
+          addBox(1.58,0.12,0.16,this.material(0xe7c75c),0,0.48,-length*0.48);
+          wheel(-0.72,-0.78,0.31); wheel(0.72,-0.78,0.31); wheel(0,1.12,0.34);
+        } else {
+          addBox(1.9,0.82,length,bodyMat,0,0.78,0.1);
+          addBox(1.78,0.82,length*0.56,glassMat,0,1.48,-0.12);
+          addBox(1.85,0.16,0.18,this.material(0xe9d7a9),0,0.38,-length*0.42);
+          for (const wx of [-0.82,0.82]) for (const wz of [-length*0.32,length*0.32]) wheel(wx,wz,0.34);
         }
       }
       group.position.set(x,0,z);
-      this.scene.add(group);
-      this.movingWorld.push(group);
+      this.scene.add(group); this.movingWorld.push(group);
     };
-    const traffic=[
-      ['bus',-3.1,-58,0x287b70],['car',3.0,-88,0xe0a13d],
-      ['cng',-3.0,-130,0x18875d],['bike',2.7,-165,0xc84b3e],
-      ['car',-3.2,-202,0x547ca0],['bus',3.0,-238,0xd2a04f],
-    ] as const;
-    traffic.forEach(([kind,x,z,color])=>vehicle(kind,x,z,color));
+    const traffic: [TrafficKind,number,number,number][] = [
+      ['bus',-3.1,-48,0x287b70], ['car',3.0,-66,0xe0a13d],
+      ['auto',-3.0,-102,0x16845e], ['cng',3.1,-126,0x18875d],
+      ['bike',-2.8,-146,0xc84b3e], ['rickshaw',3.0,-184,0x2d8c63],
+      ['car',-3.2,-202,0x547ca0], ['bus',3.0,-230,0xd2a04f],
+      ['auto',-3.0,-258,0xb74c42], ['cng',3.0,-282,0x277e68],
+      ['rickshaw',-3.0,-306,0x2f9366], ['bike',3.0,-330,0xc84b3e],
+    ];
+    traffic.forEach(([kind,x,z,color]) => vehicle(kind,x,z,color));
   }
 
   private buildSidewalkCrowd() {
