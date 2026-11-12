@@ -187,6 +187,8 @@ export class DrivingScene {
       this.scene.add(parkedWheel); this.movingWorld.push(parkedWheel);
     }
 
+    this.buildStreetTraffic();
+    this.buildSidewalkCrowd();
     this.buildRickshaw();
     this.buildFinishLine();
     this.player.position.set(0, 0, 0);
@@ -196,6 +198,85 @@ export class DrivingScene {
 
     this.camera.position.set(0, 5.2, 9.2);
     this.camera.lookAt(0, 1.25, -7);
+  }
+
+
+  private buildStreetTraffic() {
+    const vehicle = (kind: 'car' | 'cng' | 'bus' | 'bike', x: number, z: number, color: number) => {
+      const group = new THREE.Group();
+      const bodyMat = this.material(color,0.62);
+      const glassMat = new THREE.MeshStandardMaterial({color:0x8db9c1,roughness:0.24,metalness:0.12});
+      const black = this.material(0x202522,0.96);
+      const addBox = (w:number,h:number,d:number,c:THREE.Material,px:number,py:number,pz:number) => {
+        const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),c);
+        mesh.position.set(px,py,pz); mesh.castShadow=true; group.add(mesh); return mesh;
+      };
+      if(kind==='bus'){
+        addBox(2.7,2.45,6.2,bodyMat,0,1.45,0);
+        addBox(2.58,0.92,5.8,glassMat,0,2.05,-0.05);
+        addBox(2.78,0.18,6.25,this.material(0xf1d79a),0,0.48,0);
+        for(let row=0;row<2;row++) for(let col=0;col<5;col++){
+          addBox(0.42,0.56,0.045,glassMat,(col-2)*0.48,1.85+row*0.7,-3.12);
+        }
+      } else if(kind==='bike') {
+        const wheel=(wx:number,wz:number)=>{
+          const m=new THREE.Mesh(new THREE.TorusGeometry(0.34,0.075,8,18),black);
+          m.position.set(wx,0.36,wz); m.rotation.y=Math.PI/2; group.add(m);
+        };
+        wheel(0,-0.8); wheel(0,0.85);
+        addBox(0.34,0.55,1.15,bodyMat,0,0.86,0);
+        addBox(0.58,0.14,0.48,this.material(0x252321),0,1.2,0.2);
+        addBox(0.52,0.1,0.08,this.material(0xbcc7bd),0,1.3,-0.48);
+      } else {
+        const length=kind==='cng'?2.7:3.4;
+        addBox(kind==='cng'?1.55:1.9,0.82,length,bodyMat,0,0.78,0.1);
+        addBox(kind==='cng'?1.5:1.78,0.82,length*0.56,glassMat,0,1.48,-0.12);
+        addBox(1.85,0.16,0.18,this.material(0xe9d7a9),0,0.38,-length*0.42);
+        for(const wx of [-0.82,0.82]) for(const wz of [-length*0.32,length*0.32]){
+          const tire=new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.34,0.18,14),black);
+          tire.rotation.z=Math.PI/2; tire.position.set(wx,0.36,wz); group.add(tire);
+          const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.2,10),this.material(0xb5b8a8));
+          hub.rotation.z=Math.PI/2; hub.position.copy(tire.position); group.add(hub);
+        }
+      }
+      group.position.set(x,0,z);
+      this.scene.add(group);
+      this.movingWorld.push(group);
+    };
+    const traffic=[
+      ['bus',-3.1,-58,0x287b70],['car',3.0,-88,0xe0a13d],
+      ['cng',-3.0,-130,0x18875d],['bike',2.7,-165,0xc84b3e],
+      ['car',-3.2,-202,0x547ca0],['bus',3.0,-238,0xd2a04f],
+    ] as const;
+    traffic.forEach(([kind,x,z,color])=>vehicle(kind,x,z,color));
+  }
+
+  private buildSidewalkCrowd() {
+    for(let i=0;i<12;i++){
+      const side=i%2===0?-1:1;
+      const x=side*(9.0+(i%3)*0.45);
+      const z=-24-i*18;
+      const person=new THREE.Group();
+      const shirt=this.material([0x2e8069,0xc65a49,0x426f9b,0xd39c43][i%4]);
+      const skin=this.material(0xb97951);
+      const body=new THREE.Mesh(new THREE.CapsuleGeometry(0.22,0.55,4,7),shirt);
+      body.position.y=1.05; person.add(body);
+      const head=new THREE.Mesh(new THREE.SphereGeometry(0.19,12,10),skin);
+      head.position.set(0,1.55,-0.02); person.add(head);
+      const legMat=this.material(0x343a3a);
+      for(const lx of [-0.12,0.12]){
+        const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.065,0.075,0.58,7),legMat);
+        leg.position.set(lx,0.38,0); person.add(leg);
+      }
+      const armMat=skin;
+      for(const ax of [-0.28,0.28]){
+        const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.07,0.58,7),armMat);
+        arm.position.set(ax,1.05,-0.02); arm.rotation.z=ax<0?-0.22:0.22; person.add(arm);
+      }
+      person.position.set(x,0,z);
+      this.scene.add(person);
+      this.movingWorld.push(person);
+    }
   }
 
   private buildFinishLine() {
