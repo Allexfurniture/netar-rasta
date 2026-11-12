@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GameLoop } from '../../core/GameLoop';
 import { InputController, type InputSnapshot } from '../../input/InputController';
-import { advanceRoad, createRoadState, type RoadAdvance, type RoadState } from '../../world/RoadGraph';
+import { advanceRoad, retreatRoad, createRoadState, type RoadAdvance, type RoadState } from '../../world/RoadGraph';
 
 export type SceneStatus = { speed: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; caught: boolean; pursuitActive: boolean; currentDistrict: string; roadX: number };
 type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
@@ -673,7 +673,7 @@ export class DrivingScene {
   private update(dt: number) {
     const controls: InputSnapshot = this.input.consume();
     if (this.finished || this.caught) return;
-    const targetSpeed = controls.reverse ? 4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
+    const targetSpeed = controls.brake ? 0 : controls.reverse ? -4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
     this.speed = THREE.MathUtils.damp(this.speed, targetSpeed, 2.4, dt);
     this.steering = THREE.MathUtils.damp(this.steering, controls.steer, 7.5, dt);
     this.player.rotation.z = THREE.MathUtils.damp(this.player.rotation.z, -this.steering * 0.09, 6, dt);
@@ -681,7 +681,7 @@ export class DrivingScene {
     this.wheelRotation += this.speed * dt * 1.7;
     this.wheels.forEach(wheel => { wheel.rotation.x = this.wheelRotation; });
     const travel = this.speed * dt;
-    const roadProgress = advanceRoad(this.roadState, travel, controls.steer);
+    const roadProgress = travel < 0 ? retreatRoad(this.roadState, -travel) : advanceRoad(this.roadState, travel, controls.steer);
     this.roadState = roadProgress;
     this.distance = roadProgress.distance;
     this.roadX = roadProgress.x;
@@ -710,7 +710,7 @@ export class DrivingScene {
       this.speed = 0;
       this.input.clear();
     }
-    this.onStatus({ speed: Math.round(this.speed * 8), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX });
+    this.onStatus({ speed: Math.round(Math.abs(this.speed) * 8), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX });
   }
 
   private resize() {
@@ -732,7 +732,7 @@ export class DrivingScene {
     if (!this.disposed) this.loop.start();
   }
 
-  setTouch(key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn' | 'boost', pressed: boolean) {
+  setTouch(key: 'left' | 'right' | 'accelerate' | 'reverse' | 'brake' | 'boost', pressed: boolean) {
     this.input.setTouch(key, pressed);
   }
 
