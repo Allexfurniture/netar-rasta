@@ -27,7 +27,7 @@ export class InputController {
   private readonly onBlur = () => { this.keys.clear(); this.touch.clear(); };
   private readonly onVisibility = () => { if (document.hidden) this.onBlur(); };
 
-  constructor(private readonly target: HTMLElement) {
+  constructor() {
     window.addEventListener('keydown', this.onKeyDown, { passive: false });
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
