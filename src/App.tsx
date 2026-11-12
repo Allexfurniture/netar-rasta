@@ -177,7 +177,7 @@ export default function App() {
               <span>{status.charging ? 'চার্জ হচ্ছে' : 'ব্যাটারি'}</span>
               <strong>{status.battery}<small>%</small></strong>
               <div className="metric-track"><i style={{ width: status.battery + '%', background: status.battery < 20 ? '#e87862' : '#c6e58c' }} /></div>
-              <small className="battery-damage">ক্ষতি {status.damage}%</small>
+              <small className="battery-damage">যানবাহনের ক্ষতি {status.damage}% · মোট ক্ষতি ৳{status.totalDamageCost.toLocaleString('bn-BD')}</small>
             </div>
             <div className="hud-card route-map-card" aria-label="রোড গ্রাফ মিনিম্যাপ">
               <span>রুট · {status.currentDistrict}</span>
