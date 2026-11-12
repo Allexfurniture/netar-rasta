@@ -4,14 +4,14 @@ export type RoadEdge = { id: string; from: string; to: string; choice: -1 | 0 | 
 export const ROAD_NODES: RoadNode[] = [
   { id: 'start', label: 'শুরু', x: 0, distance: 0 },
   { id: 'farmgate', label: 'ফার্মগেট', x: 0, distance: 70 },
-  { id: 'tejgaon-link', label: 'তেজগাঁও লিংক', x: -9, distance: 112 },
-  { id: 'karwan-link', label: 'কারওয়ান বাজার', x: 9, distance: 112 },
+  { id: 'tejgaon-link', label: 'তেজগাঁও লিংক', x: -4.5, distance: 112 },
+  { id: 'karwan-link', label: 'কারওয়ান বাজার', x: 4.5, distance: 112 },
   { id: 'shahbagh', label: 'শাহবাগ', x: 0, distance: 158 },
-  { id: 'katabon-link', label: 'কাটাবন', x: -9, distance: 202 },
-  { id: 'nilkhet-link', label: 'নীলক্ষেত', x: 9, distance: 202 },
+  { id: 'katabon-link', label: 'কাটাবন', x: -4.5, distance: 202 },
+  { id: 'nilkhet-link', label: 'নীলক্ষেত', x: 4.5, distance: 202 },
   { id: 'dhanmondi', label: 'ধানমন্ডি', x: 0, distance: 246 },
-  { id: 'satmasjid-link', label: 'সাতমসজিদ রোড', x: -9, distance: 290 },
-  { id: 'jigatola-link', label: 'জিগাতলা', x: 9, distance: 290 },
+  { id: 'satmasjid-link', label: 'সাতমসজিদ রোড', x: -4.5, distance: 290 },
+  { id: 'jigatola-link', label: 'জিগাতলা', x: 4.5, distance: 290 },
   { id: 'finish', label: 'ফিনিশ', x: 0, distance: 1200 },
 ];
 
