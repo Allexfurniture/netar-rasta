@@ -987,7 +987,7 @@ export class DrivingScene {
     this.player.position.x = THREE.MathUtils.damp(this.player.position.x, this.roadX + this.lateralOffset, 10, dt);
     this.crashTime = Math.max(0, this.crashTime - dt);
     this.updateTraffic(dt);
-    this.sidewalkPeople.forEach(person => this.animatePerson(person, dt));
+    this.pedestrians.forEach(person => { if (!person.knockedBack) this.animatePerson(person, dt); });
     this.updatePursuit(dt);
     this.updateChargingAndBattery(dt);
     this.finishLine.position.z += travel;
