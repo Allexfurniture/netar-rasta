@@ -209,6 +209,15 @@ export class DrivingScene {
     this.renderer.setSize(width, height, false);
   }
 
+  pause() {
+    this.input.clear();
+    this.loop.stop();
+  }
+
+  resume() {
+    if (!this.disposed) this.loop.start();
+  }
+
   setTouch(key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn', pressed: boolean) {
     this.input.setTouch(key, pressed);
   }
