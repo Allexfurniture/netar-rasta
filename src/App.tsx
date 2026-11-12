@@ -7,11 +7,12 @@ export default function App() {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<DrivingScene | null>(null);
   const [view, setView] = useState<ViewState>('ready');
+  const [sceneMounted, setSceneMounted] = useState(false);
   const [status, setStatus] = useState<SceneStatus>({ speed: 0, steering: 0, hornFlash: false });
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (view !== 'running' || !hostRef.current || sceneRef.current) return;
+    if (!sceneMounted || !hostRef.current || sceneRef.current) return;
     let lastPublish = 0;
     try {
       sceneRef.current = new DrivingScene(hostRef.current, (next) => {
@@ -24,12 +25,18 @@ export default function App() {
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'WebGL চালু করা যায়নি';
       setError(message);
+      setSceneMounted(false);
       setView('error');
     }
     return () => {
       sceneRef.current?.dispose();
       sceneRef.current = null;
     };
+  }, [sceneMounted]);
+
+  useEffect(() => {
+    if (view === 'paused') sceneRef.current?.pause();
+    if (view === 'running') sceneRef.current?.resume();
   }, [view]);
 
   useEffect(() => {
@@ -43,6 +50,7 @@ export default function App() {
 
   const start = useCallback(() => {
     setError('');
+    setSceneMounted(true);
     setView('running');
   }, []);
 
