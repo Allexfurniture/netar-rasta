@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GameLoop } from '../../core/GameLoop';
 import { InputController, type InputSnapshot } from '../../input/InputController';
 
-export type SceneStatus = { speed: number; steering: number; hornFlash: boolean };
+export type SceneStatus = { speed: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean };
 
 export class DrivingScene {
   private readonly scene = new THREE.Scene();
@@ -14,6 +14,10 @@ export class DrivingScene {
   private readonly wheels: THREE.Mesh[] = [];
   private readonly movingWorld: THREE.Object3D[] = [];
   private readonly clockLight = new THREE.PointLight(0xffd28a, 0, 8);
+  private readonly finishLine = new THREE.Group();
+  private distance = 0;
+  private finished = false;
+  private readonly prototypeRouteLength = 1200;
   private readonly resizeObserver: ResizeObserver;
   private speed = 11;
   private steering = 0;
@@ -122,6 +126,7 @@ export class DrivingScene {
     }
 
     this.buildRickshaw();
+    this.buildFinishLine();
     this.player.position.set(0, 0, 0);
     this.scene.add(this.player);
     this.clockLight.position.set(0, 2.2, -0.8);
@@ -129,6 +134,19 @@ export class DrivingScene {
 
     this.camera.position.set(0, 5.6, 9.5);
     this.camera.lookAt(0, 1.1, -5);
+  }
+
+  private buildFinishLine() {
+    const postMaterial = this.material(0xe8d89b, 0.55);
+    const bannerMaterial = this.material(0x1b5a3c, 0.65);
+    const left = new THREE.Mesh(new THREE.BoxGeometry(0.32, 5.4, 0.34), postMaterial);
+    left.position.set(-6.1, 2.7, -this.prototypeRouteLength);
+    const right = left.clone();
+    right.position.x = 6.1;
+    const banner = new THREE.Mesh(new THREE.BoxGeometry(12.5, 0.85, 0.35), bannerMaterial);
+    banner.position.set(0, 5.15, -this.prototypeRouteLength);
+    this.finishLine.add(left, right, banner);
+    this.scene.add(this.finishLine);
   }
 
   private buildRickshaw() {
@@ -179,7 +197,8 @@ export class DrivingScene {
 
   private update(dt: number) {
     const controls: InputSnapshot = this.input.consume();
-    const targetSpeed = controls.reverse ? 4 : controls.accelerate ? 17 : 11;
+    if (this.finished) return;
+    const targetSpeed = controls.reverse ? 4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
     this.speed = THREE.MathUtils.damp(this.speed, targetSpeed, 2.4, dt);
     this.steering = THREE.MathUtils.damp(this.steering, controls.steer, 7.5, dt);
     this.player.position.x = THREE.MathUtils.clamp(this.player.position.x + this.steering * dt * 5.2, -4.7, 4.7);
@@ -188,6 +207,8 @@ export class DrivingScene {
     this.wheelRotation += this.speed * dt * 1.7;
     this.wheels.forEach(wheel => { wheel.rotation.x = this.wheelRotation; });
     const travel = this.speed * dt;
+    this.distance += travel;
+    this.finishLine.position.z += travel;
     this.movingWorld.forEach(object => {
       object.position.z += travel;
       if (object.position.z > 14) object.position.z -= 228;
@@ -196,7 +217,12 @@ export class DrivingScene {
     this.clockLight.intensity = this.hornTime > 0 ? 2.5 : 0;
     this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.player.position.x * 0.36, 2.2, dt);
     this.camera.lookAt(this.player.position.x * 0.18, 1.15, -5);
-    this.onStatus({ speed: Math.round(this.speed * 8), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0 });
+    if (this.distance >= this.prototypeRouteLength) {
+      this.finished = true;
+      this.speed = 0;
+      this.input.clear();
+    }
+    this.onStatus({ speed: Math.round(this.speed * 8), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished });
   }
 
   private resize() {
@@ -218,7 +244,7 @@ export class DrivingScene {
     if (!this.disposed) this.loop.start();
   }
 
-  setTouch(key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn', pressed: boolean) {
+  setTouch(key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn' | 'boost', pressed: boolean) {
     this.input.setTouch(key, pressed);
   }
 
