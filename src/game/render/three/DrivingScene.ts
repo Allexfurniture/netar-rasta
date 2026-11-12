@@ -114,7 +114,6 @@ export class DrivingScene {
     }
 
     const palette = [0xe7b87d, 0xd98e72, 0x9db9a4, 0xe5d3a7, 0xc3a1c9, 0xd9c5a4];
-    const shopNames = ['চা ঘর', 'মায়ের দোয়া', 'ফার্মেসি', 'মোবাইল কর্নার', 'মুদি দোকান', 'হোটেল'];
     for (let i = 0; i < 22; i++) {
       const side = i % 2 === 0 ? -1 : 1;
       const row = Math.floor(i / 2);
@@ -286,9 +285,7 @@ export class DrivingScene {
       }
       const fender = new THREE.Mesh(new THREE.TorusGeometry(spec.r+0.1,0.035,6,24,Math.PI),gold);
       fender.position.copy(tire.position); fender.rotation.set(Math.PI/2,0,0); this.player.add(fender);
-      const wheelSpin = new THREE.Group();
-      wheelSpin.position.copy(tire.position);
-      this.wheels.push(wheelSpin as unknown as THREE.Mesh);
+      this.wheels.push(tire);
     }
 
     // Driver's saddle and a friendly stylized driver silhouette.
@@ -312,7 +309,7 @@ export class DrivingScene {
     for(const side of [-1,1]){
       const rail = this.box(0.12,0.46,1.48,gold,side*0.91,1.34,0.75); this.player.add(rail);
       for(let k=0;k<4;k++){
-        const motif = sphere(0.075,k%2?0xf5d98d:0x4b9b7b,side*0.985,1.38,0.2+k*0.36);
+        sphere(0.075,k%2?0xf5d98d:0x4b9b7b,side*0.985,1.38,0.2+k*0.36);
       }
       rod(new THREE.Vector3(side*0.88,1.1,0.12),new THREE.Vector3(side*0.88,1.85,1.42),0.045,gold);
     }
@@ -332,11 +329,11 @@ export class DrivingScene {
     }
     // Decorative scalloped canopy fringe and rear hanging tassels.
     for(let i=0;i<9;i++){
-      const fringe=sphere(0.095,i%2?0xf1d28a:0xc7443b,(i-4)*0.23,2.58,-0.54);
+      sphere(0.095,i%2?0xf1d28a:0xc7443b,(i-4)*0.23,2.58,-0.54);
     }
     for(const side of [-1,1]){
       for(let i=0;i<3;i++){
-        const tassel=rod(new THREE.Vector3(side*1.04,2.55,0.1+i*0.42),new THREE.Vector3(side*1.04,2.28,0.1+i*0.42),0.025,gold);
+        rod(new THREE.Vector3(side*1.04,2.55,0.1+i*0.42),new THREE.Vector3(side*1.04,2.28,0.1+i*0.42),0.025,gold);
       }
     }
     const rearLamp=this.box(0.42,0.18,0.08,0xffcf69,0,1.03,1.58); this.player.add(rearLamp);
