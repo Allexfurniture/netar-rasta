@@ -63,8 +63,9 @@ export default function App() {
 
   const bindHold = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'brake' | 'boost') => ({
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
-      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault();
       setTouch(key, true);
+      try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Touch input remains active even if capture is unavailable. */ }
     },
     onPointerUp: () => setTouch(key, false),
     onPointerCancel: () => setTouch(key, false),
