@@ -3,7 +3,7 @@ import { GameLoop } from '../../core/GameLoop';
 import { InputController, type InputSnapshot } from '../../input/InputController';
 import { advanceRoad, retreatRoad, createRoadState, type RoadAdvance, type RoadState } from '../../world/RoadGraph';
 
-export type SceneStatus = { speed: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; caught: boolean; pursuitActive: boolean; currentDistrict: string; roadX: number };
+export type SceneStatus = { speed: number; maxSpeed: number; score: number; elapsedSeconds: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; caught: boolean; pursuitActive: boolean; currentDistrict: string; roadX: number };
 type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
 type TrafficAgent = { kind: TrafficKind; group: THREE.Group; state: RoadAdvance; cruiseSpeed: number; currentSpeed: number; routeBias: -1 | 0 | 1; lane: number; halfWidth: number; halfLength: number; overlapping: boolean };
 type AnimatedPerson = { group: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftArm: THREE.Group; rightArm: THREE.Group; phase: number; stride: number };
@@ -36,6 +36,8 @@ export class DrivingScene {
   private readonly prototypeRouteLength = 1200;
   private readonly resizeObserver: ResizeObserver;
   private speed = 11;
+  private maxSpeed = 0;
+  private elapsedSeconds = 0;
   private steering = 0;
   private wheelRotation = 0;
   private hornTime = 0;
@@ -228,6 +230,8 @@ export class DrivingScene {
       this.scene.add(shop); this.movingWorld.push(shop);
       const sign = this.box(width * 0.78, 0.85, 0.28, [0x17664f,0x9b3d35,0x315c87,0x9b6a26][i % 4], x, 2.25, z + 5.48);
       this.scene.add(sign); this.movingWorld.push(sign);
+      const shopNames = ['মায়ের দোয়া হোটেল','ঢাকা ফ্যাশন','মদিনা স্টোর','ভাই ভাই টেলিকম','নিউ মার্কেট','চা বিরতি','মা-বাবার দোয়া','জনতা ফার্মেসি'];
+      this.streetSign(shopNames[i % shopNames.length], x, 2.3, z + 5.68, ['#17664f','#9b3d35','#315c87','#9b6a26'][i % 4]);
       // Bright striped awning gives the street a lively market feel.
       for (let stripe = 0; stripe < 6; stripe++) {
         const awning = this.box(width * 0.14, 0.12, 1.15, stripe % 2 ? 0xf3e3bf : 0xc94f42, x + (stripe - 2.5) * width * 0.14, 2.95, z + 5.72);
@@ -305,6 +309,7 @@ export class DrivingScene {
     this.buildSidewalkCrowd();
     this.buildPursuitCrowd();
     this.buildRickshaw();
+    this.player.scale.setScalar(0.82);
     this.buildFinishLine();
     this.player.position.set(0, 0, 0);
     this.scene.add(this.player);
@@ -576,12 +581,12 @@ export class DrivingScene {
   private buildRickshaw() {
     // Bangladesh-style battery electric auto-rickshaw / easybike.
     // No bicycle frame, pedals, chain or cycle-rickshaw carriage.
-    const frame = this.material(0x263c39, 0.58);
+    const frame = this.material(0x245b83, 0.58);
     const trim = this.material(0xd9c9a5, 0.48);
     const rubber = this.material(0x202523, 0.96);
     const glass = new THREE.MeshStandardMaterial({ color: 0x8ebbc4, roughness: 0.2, metalness: 0.12, transparent: true, opacity: 0.78 });
-    const body = this.material(0x16845e, 0.48);
-    const accent = this.material(0xe6bd58, 0.5);
+    const body = this.material(0xe34d65, 0.48);
+    const accent = this.material(0xffd34f, 0.5);
     const dark = this.material(0x343b39, 0.82);
 
     const addBox = (w:number,h:number,d:number,color:THREE.Material,x:number,y:number,z:number) => {
@@ -645,7 +650,12 @@ export class DrivingScene {
     addBox(1.88,0.72,1.72,body,0,1.08,0.88);
     addBox(1.72,0.16,1.42,this.material(0x563c30),0,1.5,0.92);
     addBox(1.78,0.14,1.82,accent,0,1.84,0.88);
-    addBox(1.78,0.12,1.82,body,0,2.65,0.88);
+    addBox(1.78,0.12,1.82,this.material(0x168c82,0.48),0,2.65,0.88);
+    // Bright painted canopy stripes make the player vehicle easy to identify.
+    for (let stripe = 0; stripe < 7; stripe++) {
+      const stripeMat = this.material([0xffd34f,0xf5f0dc,0x2c78b7,0xf5f0dc,0x65b96d,0xf5f0dc,0xff8a42][stripe],0.52);
+      addBox(0.19,0.025,1.7,stripeMat,-0.72 + stripe * 0.24,2.724,0.88);
+    }
     // Roof supports and open passenger windows are characteristic of local easybikes.
     for(const x of [-0.82,0.82]){
       addRod(new THREE.Vector3(x,1.42,0.02),new THREE.Vector3(x,2.65,0.02),0.045,frame);
@@ -673,8 +683,10 @@ export class DrivingScene {
   private update(dt: number) {
     const controls: InputSnapshot = this.input.consume();
     if (this.finished || this.caught) return;
+    this.elapsedSeconds += dt;
     const targetSpeed = controls.brake ? 0 : controls.reverse ? -4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
     this.speed = THREE.MathUtils.damp(this.speed, targetSpeed, 2.4, dt);
+    this.maxSpeed = Math.max(this.maxSpeed, Math.round(Math.abs(this.speed) * 8));
     this.steering = THREE.MathUtils.damp(this.steering, controls.steer, 7.5, dt);
     this.player.rotation.z = THREE.MathUtils.damp(this.player.rotation.z, -this.steering * 0.09, 6, dt);
     this.player.rotation.y = THREE.MathUtils.damp(this.player.rotation.y, -this.steering * 0.08, 5, dt);
@@ -702,7 +714,7 @@ export class DrivingScene {
     this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.player.position.x * 0.36, 2.2, dt) + shake;
     this.camera.lookAt(this.player.position.x * 0.18, 1.15, -5);
     if (this.caught) {
-      this.onStatus({ speed: 0, steering: 0, hornFlash: false, boostActive: false, distance: Math.floor(this.distance), finished: false, caught: true, pursuitActive: true, currentDistrict: this.currentDistrict, roadX: this.roadX });
+      this.onStatus({ speed: 0, maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: 0, hornFlash: false, boostActive: false, distance: Math.floor(this.distance), finished: false, caught: true, pursuitActive: true, currentDistrict: this.currentDistrict, roadX: this.roadX });
       return;
     }
     if (this.distance >= this.prototypeRouteLength) {
@@ -710,7 +722,7 @@ export class DrivingScene {
       this.speed = 0;
       this.input.clear();
     }
-    this.onStatus({ speed: Math.round(Math.abs(this.speed) * 8), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX });
+    this.onStatus({ speed: Math.round(Math.abs(this.speed) * 8), maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX });
   }
 
   private resize() {
