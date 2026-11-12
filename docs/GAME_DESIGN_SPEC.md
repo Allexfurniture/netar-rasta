@@ -243,12 +243,13 @@ Do not silently promote prototype tuning values to final game balance.
 
 The current prototype now includes a first connected, directed Farmgate–Shahbagh–Dhanmondi road graph. Farmgate, Shahbagh, and Dhanmondi junctions expose left/straight/right route choices; steering is latched during the final approach to a junction, and the player position follows the selected graph edge rather than free lateral movement. The graph includes named branch nodes for Tejgaon Link, Karwan Bazar, Katabon, Nilkhet, Satmasjid Road, and Jigatola, with all branches reconnecting to the main Route Run. A live minimap is rendered from the same ROAD_NODES and ROAD_EDGES data used by simulation. This is an initial gameplay graph and visual branch-road pass, not a surveyed or geographically exact Dhaka road network.
 
-The latest environment pass adds visible junction/crosswalk set pieces, Bengali district wayfinding signs for Farmgate, Shahbagh, and Dhanmondi, decorative traffic signals, overhead utility cables, a stylized National Parliament landmark silhouette, and a broader set of ambient traffic silhouettes: buses, cars, CNGs, battery electric auto-rickshaws/easybikes, pedal rickshaws, and motorcycles. These traffic and environment objects currently scroll as decorative scenery; they are not yet a graph-routed traffic simulation, and the junction props do not yet provide selectable road branches.
+The latest environment pass adds visible junction/crosswalk set pieces, Bengali district wayfinding signs for Farmgate, Shahbagh, and Dhanmondi, decorative traffic signals, overhead utility cables, and a stylized National Parliament landmark silhouette. Traffic is now a fixed-size pool of 12 active agents (bus, car, CNG, battery electric auto-rickshaw/easybike, pedal rickshaw, and motorcycle) initialized and advanced on the shared road graph. Each agent has a route preference, graph edge/progress, lane offset, speed profile, vehicle-specific rectangular collision footprint, and deterministic recycle rule. Agents follow the same branch network as the player, use a basic same-corridor headway controller to reduce speed behind a lead vehicle, and trigger a one-shot camera impact reaction when a new player/vehicle overlap begins. Collision detection is currently non-damaging: damage amounts, reward scoring, severity, and cooldown tuning remain unimplemented pending approved balance values.
 
 The scene remains procedural prototype geometry, not production-grade art. The Parliament landmark is an illustrative silhouette rather than a geographically accurate reconstruction. Bengali signboard rendering depends on available browser fonts. Outstanding work:
 - Validate left/straight/right junction selection and steering-latch timing on touch devices; refine the branch-road geometry and ensure the selected route stays visually aligned with the rickshaw.
 - Expand the initial graph beyond the three starter junctions only after route layout and gameplay QA; keep simulation, traffic, and minimap bound to the same graph data.
-- Convert traffic into lane-aware agents with graph routing, following/headway, pooling, collision shapes, and validated collision handling.
+- Validate graph-routed traffic branch choices, lane placement, headway behavior, pool recycling, and collision footprints during desktop/mobile gameplay; refine spawn spacing and per-vehicle tuning.
+- Implement approved collision severity, damage response, and collision-score rewards only after gameplay balance values are confirmed.
 - Replace procedural player and traffic vehicle meshes with optimized, properly licensed production GLB assets or artist-authored models after review.
 - Add animated pedestrians, 5–10 chaser pursuit, and caught/escape outcomes.
 - Complete the Parliament landmark, bus stops, charging stations, and district-specific environment dressing.
@@ -264,7 +265,7 @@ The scene remains procedural prototype geometry, not production-grade art. The P
 2. Define the Route Run path, finish-line trigger, button-only touch control layout, BOOST behavior, and Victory/Game Over transitions.
 3. QA the initial connected road graph, branch selection, and 3D road alignment on desktop and mobile.
 4. Extend the shared graph and refine minimap/city landmark placement.
-5. Implement traffic AI, pedestrians, collision severity, damage effects, and collision score rewards.
+5. Validate graph-routed traffic AI and implement pedestrians; add collision severity, damage effects, and collision score rewards after balance approval.
 6. Implement battery and map-based charging stations.
 7. Implement pursuit, escape, caught/Game Over, and finish-line Victory behavior.
 8. Approve and implement final score/balance values.
