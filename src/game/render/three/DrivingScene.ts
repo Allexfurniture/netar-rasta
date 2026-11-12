@@ -559,10 +559,17 @@ export class DrivingScene {
   }
 
   private launchTrafficAgent(agent: TrafficAgent, lateral: number) {
+    const side = lateral <= 0 ? -1 : 1;
+    const travelSign = Math.sign(this.speed || 1);
+    const heading = this.player.rotation.y;
+    const forwardX = -Math.sin(heading) * travelSign;
+    const forwardZ = -Math.cos(heading) * travelSign;
+    const rightX = Math.cos(heading) * side;
+    const rightZ = -Math.sin(heading) * side;
     agent.knockedBack = true;
     agent.knockbackTime = 1.35;
-    agent.knockbackVelocity.set((lateral <= 0 ? -1 : 1) * 5.2, 6.4, 2.8);
-    agent.group.rotation.z = (lateral <= 0 ? -1 : 1) * 0.22;
+    agent.knockbackVelocity.set(forwardX * 3.2 + rightX * 4.6, 6.4, forwardZ * 3.2 + rightZ * 4.6);
+    agent.group.rotation.z = side * 0.22;
     agent.group.rotation.x = -0.16;
     agent.overlapping = true;
   }
@@ -592,6 +599,7 @@ export class DrivingScene {
         agent.knockbackTime -= dt;
         agent.knockbackVelocity.y -= 12 * dt;
         agent.group.position.addScaledVector(agent.knockbackVelocity, dt);
+        if (agent.group.position.y < 0) { agent.group.position.y = 0; agent.knockbackVelocity.y = 0; }
         agent.group.rotation.z += (agent.knockbackVelocity.x >= 0 ? 1 : -1) * dt * 3.8;
         agent.group.rotation.x += dt * 2.2;
         if (agent.knockbackTime <= 0) {
@@ -642,6 +650,7 @@ export class DrivingScene {
         person.knockbackTime -= dt;
         person.knockbackVelocity.y -= 12 * dt;
         person.group.position.addScaledVector(person.knockbackVelocity, dt);
+        if (person.group.position.y < 0) { person.group.position.y = 0; person.knockbackVelocity.y = 0; }
         person.group.rotation.z += (person.knockbackVelocity.x >= 0 ? 1 : -1) * dt * 4.2;
         person.group.rotation.x += dt * 2.6;
         if (person.knockbackTime <= 0) {
@@ -661,7 +670,12 @@ export class DrivingScene {
         person.knockedBack = true;
         person.knockbackTime = 1.2;
         const direction = lateral <= 0 ? -1 : 1;
-        person.knockbackVelocity.set(direction * 4.8, 6.1, 2.4);
+        const travelSign = Math.sign(this.speed || 1);
+        const forwardX = -Math.sin(heading) * travelSign;
+        const forwardZ = -Math.cos(heading) * travelSign;
+        const rightX = Math.cos(heading) * direction;
+        const rightZ = -Math.sin(heading) * direction;
+        person.knockbackVelocity.set(forwardX * 3.0 + rightX * 4.2, 6.1, forwardZ * 3.0 + rightZ * 4.2);
         person.group.rotation.z = direction * 0.18;
         this.recordCollision('pedestrian');
         this.collisionShake = 0.5;
