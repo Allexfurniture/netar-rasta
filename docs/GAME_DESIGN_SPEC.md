@@ -287,3 +287,11 @@ The scene remains procedural prototype geometry, not production-grade art. The P
 - Supabase migrations, schema changes, and production database actions require explicit authorization.
 - Development work stays on a feature branch and is reviewed through a pull request.
 - Do not merge to main or promote Production without explicit approval.
+
+
+## Sketchfab player vehicle attribution and score display
+- Intended replacement player asset: **E Rickshaw** by **Shivang Jindal** on Sketchfab, model UID `23a8190b0b16412fa44751af2ea8fd98`, licensed **Creative Commons Attribution (CC BY)**.
+- Credit must be retained in the game's credits/about screen and any redistributed asset package.
+- Source model is approximately 402.9k triangles; optimize geometry/materials and texture sizes for mobile before shipping.
+- Current procedural player vehicle is scaled to 0.82 and recolored as a temporary stand-in until the downloadable GLB is added to the repository. Do not claim the Sketchfab model is integrated until that file is imported and verified.
+- Finish/Game Over score currently uses a transparent prototype rule: 1 point per metre driven. Finish panels also show distance, maximum speed, and elapsed time. This is a placeholder scoring rule, not final reward economy or BDT earnings.
