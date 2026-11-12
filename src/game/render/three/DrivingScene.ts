@@ -213,49 +213,133 @@ export class DrivingScene {
   }
 
   private buildRickshaw() {
-    const frame = this.box(1.35, 0.42, 2.0, 0x16865c, 0, 0.95, 0.05);
-    this.player.add(frame);
-    const seat = this.box(1.05, 0.2, 0.65, 0x292b2a, 0, 1.23, 0.52);
-    this.player.add(seat);
-    const floor = this.box(1.4, 0.14, 1.65, 0x27312d, 0, 0.62, 0.05);
-    this.player.add(floor);
+    // Bangladesh pedal rickshaw silhouette: one bicycle front wheel, two rear wheels,
+    // open passenger carriage, decorated canopy and a visible cartoon driver.
+    const steel = this.material(0x263a35, 0.52);
+    const chrome = this.material(0xb9c8bd, 0.34);
+    const rubber = this.material(0x202523, 0.98);
+    const gold = this.material(0xe9bb58, 0.48);
+    const red = this.material(0xc94b3f);
+    const green = this.material(0x16815b);
+    const blue = this.material(0x2f7891);
+    const cream = this.material(0xf2dcae);
 
-    const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.16, 1.65), this.material(0xd54d3e));
-    canopy.position.set(0, 2.35, -0.12);
-    canopy.castShadow = true;
-    this.player.add(canopy);
-    const canopyTrim = this.box(1.82, 0.1, 0.12, 0xe8bd62, 0, 2.26, -0.94);
-    this.player.add(canopyTrim);
+    const rod = (a: THREE.Vector3, b: THREE.Vector3, radius: number, mat: THREE.Material) => {
+      const delta = new THREE.Vector3().subVectors(b, a);
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, delta.length(), 8), mat);
+      mesh.position.copy(a).add(b).multiplyScalar(0.5);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize());
+      mesh.castShadow = true;
+      this.player.add(mesh);
+      return mesh;
+    };
+    const sphere = (radius: number, color: THREE.ColorRepresentation, x: number, y: number, z: number, scale?: [number,number,number]) => {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 16, 12), this.material(color));
+      mesh.position.set(x,y,z);
+      if (scale) mesh.scale.set(...scale);
+      mesh.castShadow = true;
+      this.player.add(mesh);
+      return mesh;
+    };
 
-    for (const x of [-0.76, 0.76]) {
-      for (const z of [-0.72, 0.65]) {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 1.18, 8), this.material(0xe5bd6b));
-        post.position.set(x, 1.76, z);
-        this.player.add(post);
+    // Main chassis and bicycle frame, with visible metal tubing.
+    const lower = this.box(1.65, 0.16, 2.45, green, 0, 0.64, 0.12);
+    this.player.add(lower);
+    rod(new THREE.Vector3(0,0.8,-0.95), new THREE.Vector3(0,1.05,0.1), 0.075, steel);
+    rod(new THREE.Vector3(0,1.05,0.1), new THREE.Vector3(0,0.72,1.05), 0.07, steel);
+    rod(new THREE.Vector3(0,0.72,1.05), new THREE.Vector3(0,0.8,-0.95), 0.055, steel);
+    rod(new THREE.Vector3(-0.72,0.72,0.92), new THREE.Vector3(0,0.72,1.05), 0.045, gold);
+    rod(new THREE.Vector3(0.72,0.72,0.92), new THREE.Vector3(0,0.72,1.05), 0.045, gold);
+
+    // Front bicycle fork, mudguard, handlebar and headlamp.
+    rod(new THREE.Vector3(0,0.82,-0.86), new THREE.Vector3(0,0.48,-1.43), 0.055, chrome);
+    rod(new THREE.Vector3(-0.18,0.48,-1.43), new THREE.Vector3(0.18,0.48,-1.43), 0.045, steel);
+    rod(new THREE.Vector3(-0.48,1.55,-0.88), new THREE.Vector3(0.48,1.55,-0.88), 0.045, chrome);
+    rod(new THREE.Vector3(-0.42,1.55,-0.88), new THREE.Vector3(-0.48,1.36,-0.88), 0.055, rubber);
+    rod(new THREE.Vector3(0.42,1.55,-0.88), new THREE.Vector3(0.48,1.36,-0.88), 0.055, rubber);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 10), this.material(0xffe6a0,0.28));
+    lamp.position.set(0,1.14,-1.04); this.player.add(lamp);
+    const lampRing = new THREE.Mesh(new THREE.TorusGeometry(0.18,0.035,8,20), gold);
+    lampRing.position.copy(lamp.position); lampRing.rotation.y = Math.PI; this.player.add(lampRing);
+
+    // Three spoked wheels: a single front bicycle wheel and twin rear carriage wheels.
+    const wheelSpecs = [
+      {x:0,z:-1.45,r:0.48},
+      {x:-0.91,z:0.88,r:0.53},
+      {x:0.91,z:0.88,r:0.53},
+    ] as const;
+    for (const spec of wheelSpecs) {
+      const tire = new THREE.Mesh(new THREE.TorusGeometry(spec.r,0.105,10,28),rubber);
+      tire.position.set(spec.x,spec.r,spec.z);
+      tire.rotation.y = Math.PI / 2;
+      tire.castShadow = true;
+      this.player.add(tire);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(spec.r*0.78,0.035,8,24),chrome);
+      rim.position.copy(tire.position); rim.rotation.copy(tire.rotation); this.player.add(rim);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.105,0.105,0.24,12),gold);
+      hub.rotation.z = Math.PI/2; hub.position.copy(tire.position); this.player.add(hub);
+      for(let spoke=0;spoke<10;spoke++){
+        const angle=spoke*Math.PI/5;
+        const outer=new THREE.Vector3(spec.x,spec.r+Math.sin(angle)*spec.r*0.75,spec.z+Math.cos(angle)*spec.r*0.75);
+        const inner=new THREE.Vector3(spec.x,spec.r,spec.z);
+        rod(inner,outer,0.012,chrome);
+      }
+      const fender = new THREE.Mesh(new THREE.TorusGeometry(spec.r+0.1,0.035,6,24,Math.PI),gold);
+      fender.position.copy(tire.position); fender.rotation.set(Math.PI/2,0,0); this.player.add(fender);
+      const wheelSpin = new THREE.Group();
+      wheelSpin.position.copy(tire.position);
+      this.wheels.push(wheelSpin as unknown as THREE.Mesh);
+    }
+
+    // Driver's saddle and a friendly stylized driver silhouette.
+    const saddle = this.box(0.62,0.14,0.48,0x342b24,0,1.08,-0.35); this.player.add(saddle);
+    const driverBody = new THREE.Mesh(new THREE.CapsuleGeometry(0.28,0.55,4,8),this.material(0x2c6c55));
+    driverBody.position.set(0,1.55,-0.18); driverBody.rotation.x=-0.18; this.player.add(driverBody);
+    sphere(0.25,0xb97850,0,2.02,-0.28,[0.92,1.05,0.9]);
+    // Hair, face, eyes and smile face forward toward the road (-Z).
+    sphere(0.23,0x24221f,0,2.2,-0.24,[1.02,0.52,0.95]);
+    sphere(0.035,0x171717,-0.085,2.05,-0.49);
+    sphere(0.035,0x171717,0.085,2.05,-0.49);
+    const smile = new THREE.Mesh(new THREE.TorusGeometry(0.075,0.018,6,12,Math.PI),this.material(0x542f29));
+    smile.position.set(0,1.96,-0.505); smile.rotation.z=Math.PI; this.player.add(smile);
+    rod(new THREE.Vector3(-0.2,1.7,-0.3),new THREE.Vector3(-0.43,1.52,-0.82),0.075,this.material(0xb97850));
+    rod(new THREE.Vector3(0.2,1.7,-0.3),new THREE.Vector3(0.43,1.52,-0.82),0.075,this.material(0xb97850));
+
+    // Passenger carriage, upholstered bench, side panels and hand-painted motifs.
+    const carriage = this.box(1.78,0.52,1.58,red,0,1.02,0.76); this.player.add(carriage);
+    const seatBack = this.box(1.56,0.62,0.18,blue,0,1.58,1.42); this.player.add(seatBack);
+    const cushion = this.box(1.52,0.16,0.72,0xead2a2,0,1.36,0.78); this.player.add(cushion);
+    for(const side of [-1,1]){
+      const rail = this.box(0.12,0.46,1.48,gold,side*0.91,1.34,0.75); this.player.add(rail);
+      for(let k=0;k<4;k++){
+        const motif = sphere(0.075,k%2?0xf5d98d:0x4b9b7b,side*0.985,1.38,0.2+k*0.36);
+      }
+      rod(new THREE.Vector3(side*0.88,1.1,0.12),new THREE.Vector3(side*0.88,1.85,1.42),0.045,gold);
+    }
+
+    // High curved canopy supports and colorful fabric roof.
+    for(const side of [-1,1]){
+      rod(new THREE.Vector3(side*0.82,1.35,1.42),new THREE.Vector3(side*0.82,2.55,1.35),0.055,gold);
+      rod(new THREE.Vector3(side*0.82,2.55,1.35),new THREE.Vector3(side*0.82,2.72,-0.35),0.055,gold);
+    }
+    const canopy = new THREE.Mesh(new THREE.BoxGeometry(2.12,0.18,2.15),this.material(0xd84d43,0.72));
+    canopy.position.set(0,2.72,0.55); canopy.castShadow=true; this.player.add(canopy);
+    const canopyTop = new THREE.Mesh(new THREE.BoxGeometry(1.96,0.06,2.0),this.material(0x21845d));
+    canopyTop.position.set(0,2.84,0.55); this.player.add(canopyTop);
+    for(let stripe=0;stripe<7;stripe++){
+      const panel=this.box(0.27,0.045,1.95,stripe%2?0xf4d78c:0x2f8a68,(stripe-3)*0.28,2.89,0.55);
+      this.player.add(panel);
+    }
+    // Decorative scalloped canopy fringe and rear hanging tassels.
+    for(let i=0;i<9;i++){
+      const fringe=sphere(0.095,i%2?0xf1d28a:0xc7443b,(i-4)*0.23,2.58,-0.54);
+    }
+    for(const side of [-1,1]){
+      for(let i=0;i<3;i++){
+        const tassel=rod(new THREE.Vector3(side*1.04,2.55,0.1+i*0.42),new THREE.Vector3(side*1.04,2.28,0.1+i*0.42),0.025,gold);
       }
     }
-
-    const wheelMaterial = this.material(0x202322, 0.98);
-    for (const [x, z, radius] of [[-0.83, -0.68, 0.43], [0.83, -0.68, 0.43], [0, 1.05, 0.34]] as const) {
-      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 0.18, 20), wheelMaterial);
-      wheel.rotation.z = Math.PI / 2;
-      wheel.position.set(x, radius, z);
-      wheel.castShadow = true;
-      this.player.add(wheel);
-      this.wheels.push(wheel);
-      const hub = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.25, radius * 0.25, 0.2, 12), this.material(0xb6a46d, 0.4));
-      hub.rotation.z = Math.PI / 2;
-      hub.position.copy(wheel.position);
-      this.player.add(hub);
-    }
-
-    const windshield = new THREE.Mesh(new THREE.PlaneGeometry(1.18, 0.72), new THREE.MeshStandardMaterial({ color: 0x8dbac0, transparent: true, opacity: 0.48, side: THREE.DoubleSide, roughness: 0.2 }));
-    windshield.position.set(0, 1.72, -0.91);
-    this.player.add(windshield);
-
-    const headlamp = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), this.material(0xffe4a1, 0.3));
-    headlamp.position.set(0, 0.94, -1.03);
-    this.player.add(headlamp);
+    const rearLamp=this.box(0.42,0.18,0.08,0xffcf69,0,1.03,1.58); this.player.add(rearLamp);
   }
 
   private update(dt: number) {
