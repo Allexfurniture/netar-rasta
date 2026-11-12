@@ -18,7 +18,8 @@ export default function App() {
     try {
       sceneRef.current = new DrivingScene(hostRef.current, (next) => {
         const now = performance.now();
-        if (now - lastPublish > 120) {
+        const terminalState = next.caught || next.batteryEmpty || next.finished;
+        if (now - lastPublish > 120 || terminalState) {
           setStatus(next);
           if (next.caught || next.batteryEmpty) setView('gameover');
           else if (next.finished) setView('victory');
