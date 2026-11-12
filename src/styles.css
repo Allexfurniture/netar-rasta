@@ -27,14 +27,18 @@ button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .keyboard-hint{position:absolute;z-index:4;left:50%;bottom:calc(95px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:12px;align-items:center;padding:7px 11px;border:1px solid #ffffff2c;border-radius:12px;background:#10231bc9;color:#dce7dd;font-size:10px;white-space:nowrap;backdrop-filter:blur(8px)}
 .keyboard-hint span{display:flex;align-items:center;gap:4px}
 kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 4px;border:1px solid #718675;border-radius:5px;background:#304537;color:#fff;font:700 9px Manrope,sans-serif}
-.touch-controls{position:absolute;z-index:5;left:0;right:0;bottom:max(12px,env(safe-area-inset-bottom));display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding:0 max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left));pointer-events:none}
-.control-cluster{display:flex;align-items:center;gap:8px;pointer-events:auto}
-.touch-controls button{display:grid;place-items:center;width:clamp(48px,7vw,62px);height:clamp(48px,7vw,62px);border:1px solid #a9c0ad;border-radius:16px;background:#183226eF;color:#f4f7ef;box-shadow:0 5px 16px #0005;font:700 17px Manrope,sans-serif;touch-action:none;user-select:none;backdrop-filter:blur(8px)}
+.touch-controls{position:absolute;z-index:5;left:0;right:0;bottom:max(12px,env(safe-area-inset-bottom));display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:0 max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left));pointer-events:none}
+.control-cluster{display:flex;align-items:center;gap:7px;pointer-events:auto}
+.touch-controls button{display:grid;place-items:center;width:clamp(46px,6vw,58px);height:clamp(46px,6vw,58px);padding:0 5px;border:1px solid #a9c0ad;border-radius:14px;background:#183226ef;color:#f4f7ef;box-shadow:0 5px 16px #0005;font:700 13px 'Hind Siliguri',sans-serif;white-space:nowrap;touch-action:none;user-select:none;backdrop-filter:blur(8px)}
 .touch-controls button:active{transform:scale(.96);background:#365b42}
-.touch-controls .go-control{width:clamp(60px,9vw,76px);height:clamp(60px,9vw,76px);border:0;border-radius:50%;background:#cce99a;color:#203426;font-size:18px}
-.touch-controls .boost-control{border-color:#f0bd68;background:#6b421c;color:#fff0c9;font-size:9px;font-weight:800;letter-spacing:.3px}
+.touch-controls .steering-controls{display:flex;flex-direction:column;gap:7px}
+.touch-controls .direction-control{width:clamp(48px,6vw,58px);height:clamp(48px,6vw,58px);font-size:12px;background:#142a24ed}
+.touch-controls .action-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.touch-controls .go-control{border:0;background:#cce99a;color:#203426;font-size:14px}
+.touch-controls .brake-control{border-color:#e99a82;background:#71392f;color:#fff0e9}
+.touch-controls .boost-control{border-color:#f0bd68;background:#6b421c;color:#fff0c9;font-size:14px}
 .touch-controls .boost-control.is-active,.touch-controls .boost-control:active{background:#f0bd68;color:#30200e;box-shadow:0 0 22px #f0bd6880}
-.touch-controls .secondary-control{font-size:10px}
+.touch-controls .reverse-control{border-color:#8ca9d3;background:#293f61;color:#edf4ff}
 .provisional-note{position:absolute;z-index:4;right:14px;bottom:calc(max(78px,env(safe-area-inset-bottom) + 72px));margin:0;color:#f0f4e8;font-size:9px;text-shadow:0 1px 5px #000b}
 .scene-cover{position:absolute;z-index:8;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;color:#edf3ee;background:linear-gradient(180deg,#14251fe8,#101a18f2);backdrop-filter:blur(9px)}
 .cover-icon{margin-bottom:10px;font-size:62px;filter:drop-shadow(0 10px 18px #0008)}
