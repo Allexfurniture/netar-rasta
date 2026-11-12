@@ -37,12 +37,14 @@ Rebuild the game on a clean feature branch from `main`, following the approved p
 - Drive minimap from the same graph and player position.
 
 ### Stage 3 — Core driving and traffic
-- Implement movement, steering, reverse, horn interface, traffic routing, collision categories and damage system.
-- Add pedestrians and pursuit only after their state rules and tuning are explicit.
+- Implement movement with LEFT/RIGHT/GO/REV/HORN/BOOST buttons and matching keyboard input; no virtual steering wheel or joystick.
+- Implement traffic routing, pedestrians, collision categories, damage, and anti-farming virtual BDT collision rewards.
+- Add horn, engine, traffic, boost, collision, and pursuit reaction effects (no background music).
 
-### Stage 4 — Battery, charging, score and run lifecycle
+### Stage 4 — Battery, charging, score and Route Run lifecycle
 - Implement battery drain and exact uninterrupted five-second full charge.
-- Keep score/virtual BDT non-monetary and immutable after Game Over.
+- Implement the defined route and finish-line Victory state; being caught before the finish line, battery depletion, or an approved failure condition produces Game Over.
+- Keep score/virtual BDT non-monetary and immutable after Victory/Game Over.
 - Test all state transitions and edge cases.
 
 ### Stage 5 — Guest and leaderboard
@@ -76,3 +78,11 @@ A stage is not complete merely because TypeScript or Vite builds. It must pass i
 - [ ] Manual interactive browser and Android device QA — outstanding; do not mark Stage 1 accepted until reviewed.
 
 **Current preview is a foundation test scene only.** It is not the finished game or final art direction. Stage 2 must wait for review of camera framing, rickshaw proportions, scene composition, and control feel.
+
+
+## Product decision update — 2026-11-12
+- [x] Endless Survival replaced by Finish Line Route Run, explicitly approved by the product owner.
+- [x] Finish line is a successful run outcome; being caught before reaching it is a failure outcome.
+- [x] Touch driving controls are button-only: LEFT, RIGHT, GO, REV, HORN, BOOST. No steering wheel or virtual joystick.
+- [ ] Implement BOOST, finish-line trigger, Victory state, collision score rewards, and original sound effects.
+- [ ] Confirm provisional tuning and validate complete gameplay on a real mobile browser before acceptance.
