@@ -55,7 +55,7 @@ export class InputController {
       accelerate,
       reverse,
       brake,
-      horn: this.hornPressed || this.touch.has('horn'),
+      horn: this.hornPressed,
       boost,
       pause: this.pausePressed,
     };
