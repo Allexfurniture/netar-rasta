@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GameLoop } from '../../core/GameLoop';
 import { InputController, type InputSnapshot } from '../../input/InputController';
-import { advanceRoad, retreatRoad, createRoadState, type RoadAdvance, type RoadState } from '../../world/RoadGraph';
+import { advanceRoad, retreatRoad, createRoadState, getRoadPoint, type RoadAdvance, type RoadState } from '../../world/RoadGraph';
 
 export type SceneStatus = { speed: number; maxSpeed: number; score: number; elapsedSeconds: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; caught: boolean; pursuitActive: boolean; currentDistrict: string; roadX: number; battery: number; charging: boolean; damage: number; batteryEmpty: boolean };
 type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
@@ -571,7 +571,7 @@ export class DrivingScene {
           this.crashRoll = this.player.position.x <= agent.group.position.x ? -1 : 1;
           this.damage = Math.min(100, this.damage + (agent.kind === 'bus' ? 28 : agent.kind === 'car' ? 20 : 12));
           this.speed *= 0.52;
-          this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.crashRoll * 0.45, -2.25, 2.25);
+          this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.crashRoll * 0.45, -2.65, 2.65);
         }
       } else if (!overlaps) {
         agent.overlapping = false;
@@ -869,14 +869,14 @@ export class DrivingScene {
     const controls: InputSnapshot = this.input.consume();
     if (this.finished || this.caught || this.batteryEmpty) return;
     this.elapsedSeconds += dt;
-    const targetSpeed = controls.brake ? 0 : controls.reverse ? -4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
+    const reverseAllowed = controls.reverse && this.distance > 0.05 && !controls.brake;\n    const targetSpeed = controls.brake ? 0 : reverseAllowed ? -4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
     this.speed = THREE.MathUtils.damp(this.speed, targetSpeed, 2.4, dt);
     this.maxSpeed = Math.max(this.maxSpeed, Math.round(Math.abs(this.speed) * 8));
     this.steering = THREE.MathUtils.damp(this.steering, controls.steer, 9, dt);
     // Steering moves the vehicle continuously inside the current road corridor.
-    this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.steering * 4.4 * dt, -2.25, 2.25);
+    // Keep the complete easybike footprint inside the narrowest connected road segment.\n    this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.steering * 3.8 * dt, -2.65, 2.65);
     this.player.rotation.z = THREE.MathUtils.damp(this.player.rotation.z, -this.steering * 0.11 + (this.crashTime > 0 ? this.crashRoll * Math.sin((this.crashTime / 0.55) * Math.PI) * 0.42 : 0), 7, dt);
-    this.player.rotation.y = THREE.MathUtils.damp(this.player.rotation.y, -this.steering * 0.07, 5, dt);
+    const roadAhead = getRoadPoint(this.roadState.edgeId, Math.min(1, this.roadState.edgeProgress + 0.06));\n    const roadHeading = -Math.atan2(roadAhead.x - this.roadX, Math.max(0.001, roadAhead.distance - this.distance));\n    this.player.rotation.y = THREE.MathUtils.damp(this.player.rotation.y, roadHeading - this.steering * 0.035, 5, dt);
     this.wheelRotation += this.speed * dt * 1.7;
     this.wheels.forEach(wheel => { wheel.rotation.x = this.wheelRotation; });
     const travel = this.speed * dt;
