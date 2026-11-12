@@ -536,7 +536,6 @@ export class DrivingScene {
     this.chasers.forEach((person, i) => {
       const previousZ = person.group.position.z;
       const gapToPlayer = previousZ;
-      const advance = Math.max(0, chaserSpeed * dt);
       const newGap = Math.max(0, gapToPlayer + (this.speed - chaserSpeed) * dt);
       person.group.position.z = newGap;
       person.group.position.x = THREE.MathUtils.damp(person.group.position.x, this.player.position.x + (i % 2 ? 0.75 : -0.75), 1.8, dt);
