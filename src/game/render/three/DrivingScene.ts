@@ -209,6 +209,10 @@ export class DrivingScene {
     this.renderer.setSize(width, height, false);
   }
 
+  setTouch(key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn', pressed: boolean) {
+    this.input.setTouch(key, pressed);
+  }
+
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
