@@ -151,20 +151,41 @@ export class DrivingScene {
     const island = this.box(1.15, 0.2, 7.8, color, 0, 0.12, z + 5.2);
     this.scene.add(island); this.movingWorld.push(island);
 
-    // Two traversable side-road corridors connect this junction to the next node.
+    // Two curved side-road corridors. Their centerlines follow the same smoothstep
+    // profile as RoadGraph so the visible asphalt matches the drivable route.
     const addBranch = (side: -1 | 1, fromZ: number, toZ: number) => {
-      const start = new THREE.Vector3(0, 0.018, fromZ);
-      const middle = new THREE.Vector3(side * 4.5, 0.018, (fromZ + toZ) / 2);
-      const end = new THREE.Vector3(0, 0.018, toZ);
-      for (const [a, b] of [[start, middle], [middle, end]] as const) {
-        const delta = new THREE.Vector3().subVectors(b, a);
-        const length = delta.length();
-        const road = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.045, length), this.material(0x3d4140, 0.98));
-        road.position.copy(a).add(b).multiplyScalar(0.5);
-        road.rotation.y = Math.atan2(delta.x, delta.z);
-        road.receiveShadow = true;
-        this.scene.add(road); this.movingWorld.push(road);
+      const geometry = new THREE.BufferGeometry();
+      const positions: number[] = [];
+      const indices: number[] = [];
+      const segments = 48;
+      const smooth = (value: number) => value * value * (3 - 2 * value);
+      const centerAt = (t: number) => side * 4.5 * (t <= 0.5 ? smooth(t * 2) : smooth((1 - t) * 2));
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const previousT = Math.max(0, t - 1 / segments);
+        const nextT = Math.min(1, t + 1 / segments);
+        const centerX = centerAt(t);
+        const dx = centerAt(nextT) - centerAt(previousT);
+        const dz = (toZ - fromZ) * (nextT - previousT);
+        const length = Math.max(0.001, Math.hypot(dx, dz));
+        const normalX = dz / length;
+        const normalZ = -dx / length;
+        const centerZ = fromZ + (toZ - fromZ) * t;
+        const halfWidth = 4.25;
+        positions.push(centerX + normalX * halfWidth, 0.018, centerZ + normalZ * halfWidth);
+        positions.push(centerX - normalX * halfWidth, 0.018, centerZ - normalZ * halfWidth);
+        if (i < segments) {
+          const a = i * 2;
+          indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
       }
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+      const road = new THREE.Mesh(geometry, this.material(0x3d4140, 0.98));
+      road.receiveShadow = true;
+      this.scene.add(road);
+      this.movingWorld.push(road);
     };
     addBranch(-1, z, z - 88);
     addBranch(1, z, z - 88);
