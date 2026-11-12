@@ -537,7 +537,7 @@ export class DrivingScene {
       const previousZ = person.group.position.z;
       const gapToPlayer = previousZ;
       const advance = Math.max(0, chaserSpeed * dt);
-      const newGap = Math.max(0, gapToPlayer - advance + Math.max(0, this.speed - chaserSpeed) * dt * 0.18);
+      const newGap = Math.max(0, gapToPlayer + (this.speed - chaserSpeed) * dt);
       person.group.position.z = newGap;
       person.group.position.x = THREE.MathUtils.damp(person.group.position.x, this.player.position.x + (i % 2 ? 0.75 : -0.75), 1.8, dt);
       person.group.rotation.y = Math.PI;
@@ -673,7 +673,7 @@ export class DrivingScene {
 
   private update(dt: number) {
     const controls: InputSnapshot = this.input.consume();
-    if (this.finished) return;
+    if (this.finished || this.caught) return;
     const targetSpeed = controls.reverse ? 4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
     this.speed = THREE.MathUtils.damp(this.speed, targetSpeed, 2.4, dt);
     this.steering = THREE.MathUtils.damp(this.steering, controls.steer, 7.5, dt);
