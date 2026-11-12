@@ -128,7 +128,8 @@ Use explicit states rather than loosely coupled booleans.
 | CHARGING | Charging station is actively charging | PLAYING, PURSUIT, GAME_OVER |
 | PURSUIT | Chasers are active; escape/caught rules are evaluated | PLAYING, GAME_OVER |
 | PAUSED | Simulation and timers are frozen | Previous active state |
-| VICTORY | Finish line reached; result values immutable | READY / restart |\n| GAME_OVER | Run failed; result values immutable | READY / restart |
+| VICTORY | Finish line reached; result values immutable | READY / restart |
+| GAME_OVER | Run failed; result values immutable | READY / restart |
 
 CHARGING and PURSUIT may be orthogonal gameplay flags layered over PLAYING if that keeps the runtime simpler. Observable behavior must remain deterministic.
 
@@ -226,7 +227,11 @@ Score and virtual BDT are the same non-monetary run score unless explicitly revi
 | Charging interruption | Whether charge pauses immediately outside radius; whether driving remains enabled |
 | Pursuit trigger | Time-, collision-, or distance-based trigger |
 | Pursuit tuning | Chaser count within 5–10, chase speed, catch distance, escape duration/speed |
-| Score curve | Contribution of distance, survival time, and eligible collision rewards |\n| BOOST tuning | Speed multiplier/increment, activation behavior, duration, cooldown, and energy interaction |\n| Route finish | Route path, finish-line location, and any route checkpoint rules |\n| Collision rewards | Eligible vehicle contact classes, reward amount, cooldown, and anti-farming validation |\n| Audio | Original/supplied sound design, levels, and mobile performance |
+| Score curve | Contribution of distance, survival time, and eligible collision rewards |
+| BOOST tuning | Speed multiplier/increment, activation behavior, duration, cooldown, and energy interaction |
+| Route finish | Route path, finish-line location, and any route checkpoint rules |
+| Collision rewards | Eligible vehicle contact classes, reward amount, cooldown, and anti-farming validation |
+| Audio | Original/supplied sound design, levels, and mobile performance |
 | Pause/resume | Pause availability and browser backgrounding behavior |
 | Guest lifecycle | Guest ID/session lifetime and refresh/device behavior |
 | Leaderboard policy | Submission limits, display name rules, ranking period, tie-breaker |
