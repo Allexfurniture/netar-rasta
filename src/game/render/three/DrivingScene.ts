@@ -3,7 +3,7 @@ import { GameLoop } from '../../core/GameLoop';
 import { InputController, type InputSnapshot } from '../../input/InputController';
 import { advanceRoad, retreatRoad, createRoadState, type RoadAdvance, type RoadState } from '../../world/RoadGraph';
 
-export type SceneStatus = { speed: number; maxSpeed: number; score: number; elapsedSeconds: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; caught: boolean; pursuitActive: boolean; currentDistrict: string; roadX: number };
+export type SceneStatus = { speed: number; maxSpeed: number; score: number; elapsedSeconds: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; caught: boolean; pursuitActive: boolean; currentDistrict: string; roadX: number; battery: number; charging: boolean; damage: number; batteryEmpty: boolean };
 type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
 type TrafficAgent = { kind: TrafficKind; group: THREE.Group; state: RoadAdvance; cruiseSpeed: number; currentSpeed: number; routeBias: -1 | 0 | 1; lane: number; halfWidth: number; halfLength: number; overlapping: boolean };
 type AnimatedPerson = { group: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftArm: THREE.Group; rightArm: THREE.Group; phase: number; stride: number };
@@ -20,6 +20,16 @@ export class DrivingScene {
   private readonly trafficAgents: TrafficAgent[] = [];
   private readonly sidewalkPeople: AnimatedPerson[] = [];
   private readonly chasers: AnimatedPerson[] = [];
+  private readonly chargingStations: Array<{ group: THREE.Group; distance: number }> = [];
+  private lateralOffset = 0;
+  private battery = 100;
+  private charging = false;
+  private chargeElapsed = 0;
+  private damage = 0;
+  private batteryEmpty = false;
+  private collisionCooldown = 0;
+  private crashTime = 0;
+  private crashRoll = 0;
   private collisionShake = 0;
   private pursuitActive = false;
   private caught = false;
@@ -306,6 +316,7 @@ export class DrivingScene {
     this.streetSign('জাতীয় সংসদ ভবন', -14.5, 5.2, -215, '#315c87');
 
     this.buildStreetTraffic();
+    this.buildChargingStations();
     this.buildDhakaStreetDetails();
     this.buildSidewalkCrowd();
     this.buildPursuitCrowd();
@@ -479,6 +490,38 @@ export class DrivingScene {
     });
   }
 
+  private buildChargingStations() {
+    // Clearly marked roadside battery-swap/charging bays; positions are route-distance based.
+    for (const [index, distance] of [145, 390, 650, 930].entries()) {
+      const group = new THREE.Group();
+      const side = index % 2 === 0 ? 1 : -1;
+      const x = side * 8.6;
+      const base = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.18, 4.2), this.material(0x315b48));
+      base.position.y = 0.09; group.add(base);
+      const cabinet = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.7, 0.62), this.material(0xe7d9a9));
+      cabinet.position.set(-side * 0.55, 0.95, 0); group.add(cabinet);
+      const screen = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.42, 0.04), this.material(0x3a9b83, 0.35));
+      screen.position.set(-side * 0.55, 1.22, -0.34); group.add(screen);
+      const canopy = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.16, 2.4), this.material(0x168c82));
+      canopy.position.set(0, 2.0, 0); group.add(canopy);
+      const postMat = this.material(0xf1d34f);
+      for (const px of [-1.12, 1.12]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,2,8),postMat);
+        post.position.set(px,1,0); group.add(post);
+      }
+      const labelCanvas = document.createElement('canvas');
+      labelCanvas.width = 512; labelCanvas.height = 128;
+      const ctx = labelCanvas.getContext('2d');
+      if (ctx) { ctx.fillStyle='#164b39';ctx.fillRect(0,0,512,128);ctx.fillStyle='#fff7d8';ctx.font='bold 58px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('ইজি-বাইক চার্জ',256,66); }
+      const texture = new THREE.CanvasTexture(labelCanvas); texture.colorSpace = THREE.SRGBColorSpace;
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.6,0.65),new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide}));
+      sign.position.set(0,2.45,-0.02); group.add(sign);
+      group.position.set(x,0,-distance);
+      this.scene.add(group);
+      this.chargingStations.push({group,distance});
+    }
+  }
+
   private updateTraffic(dt: number) {
     // Compute headway against the previous simulation snapshot before advancing agents.
     const targetSpeeds = this.trafficAgents.map(agent => {
@@ -521,7 +564,15 @@ export class DrivingScene {
         && Math.abs(agent.group.position.x - this.player.position.x) < 0.98 + agent.halfWidth;
       if (overlaps && !agent.overlapping) {
         agent.overlapping = true;
-        this.collisionShake = 0.24;
+        this.collisionShake = 0.42;
+        if (this.collisionCooldown <= 0) {
+          this.collisionCooldown = 1.1;
+          this.crashTime = 0.55;
+          this.crashRoll = this.player.position.x <= agent.group.position.x ? -1 : 1;
+          this.damage = Math.min(100, this.damage + (agent.kind === 'bus' ? 28 : agent.kind === 'car' ? 20 : 12));
+          this.speed *= 0.52;
+          this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.crashRoll * 0.45, -2.25, 2.25);
+        }
       } else if (!overlaps) {
         agent.overlapping = false;
       }
@@ -620,6 +671,28 @@ export class DrivingScene {
       this.escaped = true;
       this.pursuitActive = false;
       this.chasers.forEach(person => { person.group.visible = false; });
+    }
+  }
+
+  private updateChargingAndBattery(dt: number) {
+    let nearby = false;
+    for (const station of this.chargingStations) {
+      const zGap = Math.abs(station.group.position.z);
+      const xGap = Math.abs(station.group.position.x - this.player.position.x);
+      if (zGap < 4.2 && xGap < 4.8) { nearby = true; break; }
+    }
+    this.charging = nearby && this.battery < 100;
+    if (this.charging) {
+      this.chargeElapsed += dt;
+      this.battery = Math.min(100, this.battery + 20 * dt); // 0–100% in five seconds.
+    } else {
+      this.chargeElapsed = 0;
+      this.battery = Math.max(0, this.battery - (0.012 + Math.abs(this.speed) * 0.008) * dt);
+    }
+    if (this.battery <= 0 && !this.batteryEmpty) {
+      this.batteryEmpty = true;
+      this.speed = 0;
+      this.input.clear();
     }
   }
 
@@ -745,9 +818,11 @@ export class DrivingScene {
     const targetSpeed = controls.brake ? 0 : controls.reverse ? -4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
     this.speed = THREE.MathUtils.damp(this.speed, targetSpeed, 2.4, dt);
     this.maxSpeed = Math.max(this.maxSpeed, Math.round(Math.abs(this.speed) * 8));
-    this.steering = THREE.MathUtils.damp(this.steering, controls.steer, 7.5, dt);
-    this.player.rotation.z = THREE.MathUtils.damp(this.player.rotation.z, -this.steering * 0.09, 6, dt);
-    this.player.rotation.y = THREE.MathUtils.damp(this.player.rotation.y, -this.steering * 0.08, 5, dt);
+    this.steering = THREE.MathUtils.damp(this.steering, controls.steer, 9, dt);
+    // Steering moves the vehicle continuously inside the current road corridor.
+    this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.steering * 4.4 * dt, -2.25, 2.25);
+    this.player.rotation.z = THREE.MathUtils.damp(this.player.rotation.z, -this.steering * 0.11 + (this.crashTime > 0 ? this.crashRoll * Math.sin((this.crashTime / 0.55) * Math.PI) * 0.42 : 0), 7, dt);
+    this.player.rotation.y = THREE.MathUtils.damp(this.player.rotation.y, -this.steering * 0.07, 5, dt);
     this.wheelRotation += this.speed * dt * 1.7;
     this.wheels.forEach(wheel => { wheel.rotation.x = this.wheelRotation; });
     const travel = this.speed * dt;
@@ -756,11 +831,15 @@ export class DrivingScene {
     this.distance = roadProgress.distance;
     this.roadX = roadProgress.x;
     this.currentDistrict = this.distance < 112 ? 'ফার্মগেট' : this.distance < 202 ? 'শাহবাগ' : 'ধানমন্ডি';
-    this.player.position.x = THREE.MathUtils.damp(this.player.position.x, this.roadX, 8, dt);
+    this.player.position.x = THREE.MathUtils.damp(this.player.position.x, this.roadX + this.lateralOffset, 10, dt);
+    this.collisionCooldown = Math.max(0, this.collisionCooldown - dt);
+    this.crashTime = Math.max(0, this.crashTime - dt);
     this.updateTraffic(dt);
     this.sidewalkPeople.forEach(person => this.animatePerson(person, dt));
     this.updatePursuit(dt);
+    this.updateChargingAndBattery(dt);
     this.finishLine.position.z += travel;
+    this.chargingStations.forEach(station => { station.group.position.z = this.distance - station.distance; });
     this.movingWorld.forEach(object => {
       object.position.z += travel;
       if (object.position.z > 14) object.position.z -= 228;
@@ -771,8 +850,8 @@ export class DrivingScene {
     const shake = this.collisionShake > 0 ? Math.sin(this.wheelRotation * 3.2) * this.collisionShake * 0.22 : 0;
     this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.player.position.x * 0.36, 2.2, dt) + shake;
     this.camera.lookAt(this.player.position.x * 0.18, 1.15, -5);
-    if (this.caught) {
-      this.onStatus({ speed: 0, maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: 0, hornFlash: false, boostActive: false, distance: Math.floor(this.distance), finished: false, caught: true, pursuitActive: true, currentDistrict: this.currentDistrict, roadX: this.roadX });
+    if (this.caught || this.batteryEmpty) {
+      this.onStatus({ speed: 0, maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: 0, hornFlash: false, boostActive: false, distance: Math.floor(this.distance), finished: false, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX, battery: Math.round(this.battery), charging: this.charging, damage: Math.round(this.damage), batteryEmpty: this.batteryEmpty });
       return;
     }
     if (this.distance >= this.prototypeRouteLength) {
@@ -780,7 +859,7 @@ export class DrivingScene {
       this.speed = 0;
       this.input.clear();
     }
-    this.onStatus({ speed: Math.round(Math.abs(this.speed) * 8), maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX });
+    this.onStatus({ speed: Math.round(Math.abs(this.speed) * 8), maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: Math.round(this.player.position.x * 10) / 10, hornFlash: this.hornTime > 0, boostActive: controls.boost, distance: Math.floor(this.distance), finished: this.finished, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX, battery: Math.round(this.battery), charging: this.charging, damage: Math.round(this.damage), batteryEmpty: this.batteryEmpty });
   }
 
   private resize() {
