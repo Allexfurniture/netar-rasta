@@ -9,11 +9,12 @@ export type SceneStatus = { speed: number; maxSpeed: number; score: number; elap
 type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
 type TrafficAgent = { kind: TrafficKind; group: THREE.Group; state: RoadAdvance; cruiseSpeed: number; currentSpeed: number; routeBias: -1 | 0 | 1; lane: number; halfWidth: number; halfLength: number; overlapping: boolean; knockedBack: boolean; knockbackVelocity: THREE.Vector3; knockbackTime: number };
 type AnimatedPerson = { group: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftArm: THREE.Group; rightArm: THREE.Group; phase: number; stride: number };
-type PedestrianAgent = AnimatedPerson & { knockedBack: boolean; knockbackVelocity: THREE.Vector3; knockbackTime: number; side: -1 | 1; spawnIndex: number };
+type PedestrianAgent = AnimatedPerson & { knockedBack: boolean; knockbackVelocity: THREE.Vector3; knockbackTime: number; side: -1 | 1; spawnIndex: number; walkPhase: number };
 
 export class DrivingScene {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(55, 1, 0.1, 320);
+  private readonly cameraLookTarget = new THREE.Vector3(0, 1.2, -6.5);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly input: InputController;
   private readonly loop: GameLoop;
@@ -334,15 +335,16 @@ export class DrivingScene {
     this.buildSidewalkCrowd();
     this.buildPursuitCrowd();
     this.buildRickshaw();
-    this.player.scale.setScalar(0.82);
+    this.player.scale.setScalar(0.74);
     this.buildFinishLine();
     this.player.position.set(0, 0, 0);
     this.scene.add(this.player);
     this.clockLight.position.set(0, 2.2, -0.8);
     this.player.add(this.clockLight);
 
-    this.camera.position.set(0, 5.2, 9.2);
-    this.camera.lookAt(0, 1.25, -7);
+    this.camera.position.set(0, 6.1, 10.8);
+    this.cameraLookTarget.set(0, 1.2, -6.5);
+    this.camera.lookAt(this.cameraLookTarget);
   }
 
 
@@ -656,8 +658,9 @@ export class DrivingScene {
         if (person.knockbackTime <= 0) {
           person.knockedBack = false;
           person.group.rotation.set(0, 0, 0);
-          person.group.position.set(person.side * (3.0 + (person.spawnIndex % 3) * 0.35), 0, -78 - person.spawnIndex * 2.2);
+          person.group.position.set(person.side * (3.8 + (person.spawnIndex % 3) * 0.25), 0, -78 - person.spawnIndex * 2.2);
           person.phase += Math.PI;
+          person.walkPhase = person.phase;
         }
         return;
       }
@@ -723,8 +726,8 @@ export class DrivingScene {
     for (let i = 0; i < 12; i++) {
       const side = i % 2 === 0 ? -1 : 1;
       const person = this.createAnimatedPerson([0x2e8069, 0xc65a49, 0x426f9b, 0xd39c43][i % 4], i * 0.8, 2.4 + (i % 3) * 0.25);
-      const pedestrian: PedestrianAgent = { ...person, knockedBack: false, knockbackVelocity: new THREE.Vector3(), knockbackTime: 0, side, spawnIndex: i };
-      pedestrian.group.position.set(side * (3.0 + (i % 3) * 0.35), 0, -24 - i * 18);
+      const pedestrian: PedestrianAgent = { ...person, knockedBack: false, knockbackVelocity: new THREE.Vector3(), knockbackTime: 0, side, spawnIndex: i, walkPhase: i * 1.7 };
+      pedestrian.group.position.set(side * (3.8 + (i % 3) * 0.25), 0, -24 - i * 18);
       this.scene.add(pedestrian.group); this.movingWorld.push(pedestrian.group);
       this.sidewalkPeople.push(pedestrian); this.pedestrians.push(pedestrian);
     }
@@ -982,7 +985,7 @@ export class DrivingScene {
     const targetSpeed = controls.brake ? 0 : reverseAllowed ? -4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
     this.speed = THREE.MathUtils.damp(this.speed, targetSpeed, 2.4, dt);
     this.maxSpeed = Math.max(this.maxSpeed, Math.round(Math.abs(this.speed) * 8));
-    this.steering = THREE.MathUtils.damp(this.steering, controls.steer, 9, dt);
+    this.steering = THREE.MathUtils.damp(this.steering, controls.steer, 6.5, dt);
     // Steering moves the vehicle continuously inside the current road corridor.
     // Keep the complete easybike footprint inside the narrowest connected road segment.
     this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.steering * 3.8 * dt, -2.65, 2.65);
@@ -998,10 +1001,19 @@ export class DrivingScene {
     this.distance = roadProgress.distance;
     this.roadX = roadProgress.x;
     this.currentDistrict = this.distance < 112 ? 'ফার্মগেট' : this.distance < 202 ? 'শাহবাগ' : 'ধানমন্ডি';
-    this.player.position.x = THREE.MathUtils.damp(this.player.position.x, this.roadX + this.lateralOffset, 10, dt);
+    this.player.position.x = THREE.MathUtils.damp(this.player.position.x, this.roadX + this.lateralOffset, 7.2, dt);
     this.crashTime = Math.max(0, this.crashTime - dt);
     this.updateTraffic(dt);
-    this.pedestrians.forEach(person => { if (!person.knockedBack) this.animatePerson(person, dt); });
+    this.pedestrians.forEach(person => {
+      if (person.knockedBack) return;
+      this.animatePerson(person, dt);
+      person.walkPhase += dt * 0.72;
+      // Pedestrians wander within the roadside shoulder instead of standing in place.
+      const sideWalk = 3.75 + (person.spawnIndex % 3) * 0.24 + Math.sin(person.walkPhase) * 0.82;
+      person.group.position.x = person.side * sideWalk;
+      person.group.position.z += Math.sin(person.walkPhase * 0.62) * 0.22 * dt;
+      person.group.rotation.y = person.side < 0 ? Math.PI / 2 : -Math.PI / 2;
+    });
     this.updatePursuit(dt);
     this.updateChargingAndBattery(dt);
     this.finishLine.position.z += travel;
@@ -1015,8 +1027,18 @@ export class DrivingScene {
     this.clockLight.intensity = this.hornTime > 0 ? 2.5 : 0;
     this.collisionShake = Math.max(0,this.collisionShake - dt);
     const shake = this.collisionShake > 0 ? Math.sin(this.wheelRotation * 3.2) * this.collisionShake * 0.22 : 0;
-    this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, this.player.position.x * 0.36, 2.2, dt) + shake;
-    this.camera.lookAt(this.player.position.x * 0.18, 1.15, -5);
+    const speedCameraLift = Math.min(0.9, Math.abs(this.speed) * 0.035);
+    const speedCameraPullback = Math.min(1.8, Math.abs(this.speed) * 0.07);
+    const desiredCameraX = this.player.position.x * 0.52;
+    const desiredCameraY = 6.1 + speedCameraLift;
+    const desiredCameraZ = 10.8 + speedCameraPullback;
+    this.camera.position.x = THREE.MathUtils.damp(this.camera.position.x, desiredCameraX, 2.8, dt) + shake;
+    this.camera.position.y = THREE.MathUtils.damp(this.camera.position.y, desiredCameraY, 2.2, dt);
+    this.camera.position.z = THREE.MathUtils.damp(this.camera.position.z, desiredCameraZ, 2.2, dt);
+    this.cameraLookTarget.x = THREE.MathUtils.damp(this.cameraLookTarget.x, this.player.position.x * 0.2, 3.0, dt);
+    this.cameraLookTarget.y = THREE.MathUtils.damp(this.cameraLookTarget.y, 1.2, 2.5, dt);
+    this.cameraLookTarget.z = THREE.MathUtils.damp(this.cameraLookTarget.z, -6.5, 2.5, dt);
+    this.camera.lookAt(this.cameraLookTarget);
     if (this.caught || this.batteryEmpty) {
       this.onStatus({ speed: 0, maxSpeed: this.maxSpeed, score: Math.floor(this.distance), elapsedSeconds: Math.floor(this.elapsedSeconds), steering: 0, hornFlash: false, boostActive: false, distance: Math.floor(this.distance), finished: false, caught: this.caught, pursuitActive: this.pursuitActive, currentDistrict: this.currentDistrict, roadX: this.roadX, battery: Math.round(this.battery), charging: this.charging, damage: Math.round(this.damage), batteryEmpty: this.batteryEmpty, totalDamageCost: this.totalDamageCost, collisionCount: this.collisionCount, damageBreakdown: this.damageBreakdown });
       return;
