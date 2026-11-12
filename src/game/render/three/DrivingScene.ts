@@ -302,7 +302,6 @@ export class DrivingScene {
     const red = this.material(0xc94b3f);
     const green = this.material(0x16815b);
     const blue = this.material(0x2f7891);
-    const cream = this.material(0xf2dcae);
 
     const rod = (a: THREE.Vector3, b: THREE.Vector3, radius: number, mat: THREE.Material) => {
       const delta = new THREE.Vector3().subVectors(b, a);
@@ -323,7 +322,7 @@ export class DrivingScene {
     };
 
     // Main chassis and bicycle frame, with visible metal tubing.
-    const lower = this.box(1.65, 0.16, 2.45, green, 0, 0.64, 0.12);
+    const lower = this.box(1.65, 0.16, 2.45, 0x16815b, 0, 0.64, 0.12);
     this.player.add(lower);
     rod(new THREE.Vector3(0,0.8,-0.95), new THREE.Vector3(0,1.05,0.1), 0.075, steel);
     rod(new THREE.Vector3(0,1.05,0.1), new THREE.Vector3(0,0.72,1.05), 0.07, steel);
@@ -384,11 +383,11 @@ export class DrivingScene {
     rod(new THREE.Vector3(0.2,1.7,-0.3),new THREE.Vector3(0.43,1.52,-0.82),0.075,this.material(0xb97850));
 
     // Passenger carriage, upholstered bench, side panels and hand-painted motifs.
-    const carriage = this.box(1.78,0.52,1.58,red,0,1.02,0.76); this.player.add(carriage);
-    const seatBack = this.box(1.56,0.62,0.18,blue,0,1.58,1.42); this.player.add(seatBack);
+    const carriage = this.box(1.78,0.52,1.58,0xc94b3f,0,1.02,0.76); this.player.add(carriage);
+    const seatBack = this.box(1.56,0.62,0.18,0x2f7891,0,1.58,1.42); this.player.add(seatBack);
     const cushion = this.box(1.52,0.16,0.72,0xead2a2,0,1.36,0.78); this.player.add(cushion);
     for(const side of [-1,1]){
-      const rail = this.box(0.12,0.46,1.48,gold,side*0.91,1.34,0.75); this.player.add(rail);
+      const rail = this.box(0.12,0.46,1.48,0xe9bb58,side*0.91,1.34,0.75); this.player.add(rail);
       for(let k=0;k<4;k++){
         sphere(0.075,k%2?0xf5d98d:0x4b9b7b,side*0.985,1.38,0.2+k*0.36);
       }
