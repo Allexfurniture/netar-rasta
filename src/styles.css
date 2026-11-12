@@ -94,3 +94,9 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
   pointer-events: none;
 }
+
+
+@media (max-width: 640px) {
+  .keyboard-hint { display: none; }
+  .provisional-note { bottom: calc(145px + env(safe-area-inset-bottom)); left: 12px; right: auto; max-width: 58%; }
+}
