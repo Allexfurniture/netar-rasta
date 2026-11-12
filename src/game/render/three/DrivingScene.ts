@@ -132,7 +132,7 @@ export class DrivingScene {
     // Two traversable side-road corridors connect this junction to the next node.
     const addBranch = (side: -1 | 1, fromZ: number, toZ: number) => {
       const start = new THREE.Vector3(0, 0.018, fromZ);
-      const middle = new THREE.Vector3(side * 9, 0.018, (fromZ + toZ) / 2);
+      const middle = new THREE.Vector3(side * 4.5, 0.018, (fromZ + toZ) / 2);
       const end = new THREE.Vector3(0, 0.018, toZ);
       for (const [a, b] of [[start, middle], [middle, end]] as const) {
         const delta = new THREE.Vector3().subVectors(b, a);
@@ -813,7 +813,7 @@ export class DrivingScene {
 
   private update(dt: number) {
     const controls: InputSnapshot = this.input.consume();
-    if (this.finished || this.caught) return;
+    if (this.finished || this.caught || this.batteryEmpty) return;
     this.elapsedSeconds += dt;
     const targetSpeed = controls.brake ? 0 : controls.reverse ? -4 : controls.boost ? 24 : controls.accelerate ? 17 : 11;
     this.speed = THREE.MathUtils.damp(this.speed, targetSpeed, 2.4, dt);
