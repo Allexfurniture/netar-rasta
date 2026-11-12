@@ -306,6 +306,7 @@ export class DrivingScene {
     this.streetSign('জাতীয় সংসদ ভবন', -14.5, 5.2, -215, '#315c87');
 
     this.buildStreetTraffic();
+    this.buildDhakaStreetDetails();
     this.buildSidewalkCrowd();
     this.buildPursuitCrowd();
     this.buildRickshaw();
@@ -320,6 +321,63 @@ export class DrivingScene {
     this.camera.lookAt(0, 1.25, -7);
   }
 
+
+  private buildDhakaStreetDetails() {
+    // Small street-level landmarks make the fictional Dhaka route feel lived-in.
+    const addMoving = (object: THREE.Object3D) => { this.scene.add(object); this.movingWorld.push(object); };
+    const shelter = (x: number, z: number, label: string) => {
+      for (const dx of [-1.65, 1.65]) {
+        addMoving(this.box(0.12, 2.35, 0.12, 0x53615a, x + dx, 1.17, z));
+        addMoving(this.box(0.1, 1.45, 0.1, 0x53615a, x + dx, 1.1, z - 1.05));
+      }
+      addMoving(this.box(3.65, 0.18, 1.85, 0x247b68, x, 2.35, z - 0.55));
+      addMoving(this.box(3.2, 0.12, 0.18, 0xe8c65f, x, 2.22, z - 1.42));
+      addMoving(this.box(2.65, 0.16, 0.55, 0x725b45, x, 0.62, z - 0.5));
+      this.streetSign(label, x, 3.0, z - 1.52, '#174f3d');
+    };
+    shelter(-9.1, -104, 'ফার্মগেট বাস স্টপ');
+    shelter(9.1, -192, 'শাহবাগ বাস স্টপ');
+
+    // Street vendor carts with canopies and colorful goods.
+    for (let i = 0; i < 4; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const x = side * (8.8 + (i % 2) * 0.35);
+      const z = -48 - i * 54;
+      addMoving(this.box(1.55, 0.82, 1.05, i % 2 ? 0xb86b3f : 0x4c8a70, x, 0.55, z));
+      addMoving(this.box(1.85, 0.13, 1.3, i % 2 ? 0xe6bd58 : 0xc84d43, x, 1.15, z));
+      for (const wheelX of [-0.58, 0.58]) {
+        const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.055, 7, 14), this.material(0x282b28));
+        wheel.position.set(x + wheelX, 0.22, z + 0.32);
+        addMoving(wheel);
+      }
+      for (let item = 0; item < 4; item++) {
+        const goods = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 7), this.material([0xe6b94f,0xd94e42,0x65a66c,0xe8e0c9][item]));
+        goods.position.set(x - 0.48 + item * 0.32, 1.27, z - 0.12);
+        addMoving(goods);
+      }
+    }
+
+    // Painted curb bollards and reflective road studs around junction approaches.
+    for (let i = 0; i < 18; i++) {
+      const z = -22 - i * 13;
+      for (const side of [-1, 1]) {
+        const bollard = this.box(0.18, 0.62, 0.18, i % 2 ? 0xe8dfc8 : 0xc94c40, side * 7.95, 0.31, z);
+        addMoving(bollard);
+      }
+      if (i % 2 === 0) {
+        const stud = this.box(0.22, 0.035, 0.12, 0xe7c45d, 0, 0.035, z);
+        addMoving(stud);
+      }
+    }
+
+    // Local directional signs and a small rickshaw waiting bay.
+    this.streetSign('মতিঝিল  →  শাহবাগ', 8.7, 4.0, -132, '#315c87');
+    this.streetSign('ধানমন্ডি  →', -8.7, 4.0, -224, '#315c87');
+    addMoving(this.box(3.2, 0.12, 0.16, 0xe4d4b4, -9.1, 0.18, -270));
+    addMoving(this.box(0.12, 0.8, 0.12, 0x48534e, -10.5, 0.48, -270));
+    addMoving(this.box(0.12, 0.8, 0.12, 0x48534e, -7.7, 0.48, -270));
+    this.streetSign('রিকশা স্ট্যান্ড', -9.1, 2.0, -270, '#9b6a26');
+  }
 
   private buildStreetTraffic() {
     const vehicle = (kind: TrafficKind, color: number) => {
