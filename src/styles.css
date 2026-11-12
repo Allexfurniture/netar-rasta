@@ -181,6 +181,28 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
   .touch-controls .brake-control,.touch-controls .reverse-control{width:51px;height:43px}
 }
 
+/* Responsive tactile controls: smooth press/release without delaying input state. */
+.touch-controls button{
+  transition:transform 120ms cubic-bezier(.2,.8,.2,1),background-color 150ms ease,box-shadow 150ms ease,border-color 150ms ease;
+  transform:translateZ(0);
+  -webkit-user-select:none;
+  user-select:none;
+}
+.touch-controls button:active{
+  transform:scale(.94) translateY(1px);
+  box-shadow:0 2px 7px #0006,inset 0 1px #ffffff24;
+}
+.touch-controls .direction-control:active{
+  background:linear-gradient(155deg,#3c654c,#1c3b2d);
+}
+.touch-controls .go-control:active{
+  background:linear-gradient(145deg,#e8ffc2,#c9ec91);
+}
+@media(prefers-reduced-motion:reduce){
+  .touch-controls button{transition:none}
+}
+
+
 
 .finish-stats{
   display:grid;
