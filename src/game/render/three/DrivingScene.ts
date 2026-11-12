@@ -522,6 +522,21 @@ export class DrivingScene {
     }
   }
 
+  private roadHeading(state: Pick<RoadState, 'edgeId' | 'edgeProgress'>) {
+    const before = getRoadPoint(state.edgeId, Math.max(0, state.edgeProgress - 0.025));
+    const after = getRoadPoint(state.edgeId, Math.min(1, state.edgeProgress + 0.025));
+    return -Math.atan2(after.x - before.x, Math.max(0.001, after.distance - before.distance));
+  }
+
+  private positionTrafficAgent(agent: TrafficAgent) {
+    const heading = this.roadHeading(agent.state);
+    // Lane offset follows the road's local normal, so vehicles stay inside curved branches.
+    const laneX = agent.lane * Math.cos(heading);
+    const laneZ = -agent.lane * Math.sin(heading);
+    agent.group.rotation.y = heading;
+    agent.group.position.set(agent.state.x + laneX, 0, this.distance - agent.state.distance + laneZ);
+  }
+
   private updateTraffic(dt: number) {
     // Compute headway against the previous simulation snapshot before advancing agents.
     const targetSpeeds = this.trafficAgents.map(agent => {
@@ -530,13 +545,14 @@ export class DrivingScene {
       for (const other of this.trafficAgents) {
         if (other === agent) continue;
         const gap = other.state.distance - agent.state.distance;
-        if (gap > 0 && gap < nearestGap && Math.abs(other.state.x + other.lane - agent.state.x - agent.lane) < 2.65) {
+        const lateralGap = Math.abs(other.state.x + other.lane - agent.state.x - agent.lane);
+        if (gap > 0 && gap < nearestGap && lateralGap < agent.halfWidth + other.halfWidth + 0.45) {
           nearestGap = gap;
           leadSpeed = other.currentSpeed;
         }
       }
-      if (nearestGap < 7.5) {
-        const safeSpeed = leadSpeed * Math.max(0.25, (nearestGap - 1.8) / 5.7);
+      if (nearestGap < agent.halfLength + 3.2) {
+        const safeSpeed = leadSpeed * Math.max(0.2, (nearestGap - agent.halfLength) / 3.2);
         return Math.min(agent.cruiseSpeed, safeSpeed);
       }
       return agent.cruiseSpeed;
@@ -544,11 +560,7 @@ export class DrivingScene {
 
     this.trafficAgents.forEach((agent,index) => {
       agent.currentSpeed = THREE.MathUtils.damp(agent.currentSpeed,targetSpeeds[index],2.8,dt);
-      const previousX = agent.state.x;
       agent.state = advanceRoad(agent.state,agent.currentSpeed * dt,agent.routeBias);
-      const dx = agent.state.x - previousX;
-      agent.group.rotation.y = -Math.atan2(dx,Math.max(0.001,agent.currentSpeed * dt));
-      agent.group.position.set(agent.state.x + agent.lane,0,this.distance - agent.state.distance);
 
       // Recycle the pooled agent after it falls well behind, or reaches the route end.
       if (agent.state.distance < this.distance - 52 || agent.state.distance > this.prototypeRouteLength - 18) {
@@ -556,19 +568,25 @@ export class DrivingScene {
         agent.state = advanceRoad(createRoadState(),spawnDistance,agent.routeBias);
         agent.currentSpeed = agent.cruiseSpeed;
         agent.overlapping = false;
-        agent.group.position.set(agent.state.x + agent.lane,0,this.distance - agent.state.distance);
       }
+      this.positionTrafficAgent(agent);
 
-      // Axis-aligned vehicle footprint; trigger only on contact entry, not every frame.
-      const overlaps = Math.abs(agent.group.position.z) < 1.42 + agent.halfLength
-        && Math.abs(agent.group.position.x - this.player.position.x) < 0.98 + agent.halfWidth;
+      // Test vehicle footprints in the player's local forward/lateral frame.
+      // The road heading is shared closely enough for a stable oriented-rectangle approximation.
+      const dx = agent.group.position.x - this.player.position.x;
+      const dz = agent.group.position.z;
+      const heading = this.player.rotation.y;
+      const longitudinal = dx * -Math.sin(heading) + dz * -Math.cos(heading);
+      const lateral = dx * Math.cos(heading) - dz * Math.sin(heading);
+      const overlaps = Math.abs(longitudinal) < 1.42 + agent.halfLength
+        && Math.abs(lateral) < 0.98 + agent.halfWidth;
       if (overlaps && !agent.overlapping) {
         agent.overlapping = true;
         this.collisionShake = 0.42;
         if (this.collisionCooldown <= 0) {
           this.collisionCooldown = 1.1;
           this.crashTime = 0.55;
-          this.crashRoll = this.player.position.x <= agent.group.position.x ? -1 : 1;
+          this.crashRoll = lateral <= 0 ? -1 : 1;
           this.damage = Math.min(100, this.damage + (agent.kind === 'bus' ? 28 : agent.kind === 'car' ? 20 : 12));
           this.speed *= 0.52;
           this.lateralOffset = THREE.MathUtils.clamp(this.lateralOffset + this.crashRoll * 0.45, -2.65, 2.65);
