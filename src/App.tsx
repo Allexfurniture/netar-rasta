@@ -58,55 +58,96 @@ export default function App() {
     sceneRef.current?.setTouch(key, pressed);
   };
 
+  const bindHold = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn') => ({
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setTouch(key, true);
+    },
+    onPointerUp: () => setTouch(key, false),
+    onPointerCancel: () => setTouch(key, false),
+    onLostPointerCapture: () => setTouch(key, false),
+  });
+
   return (
     <main className="app-shell">
-      <header className="masthead">
-        <div className="brand-lockup">
+      <div className="scene-viewport" ref={hostRef} aria-label="নেতার রাস্তা 3D ড্রাইভিং দৃশ্য">
+        {view === 'ready' && (
+          <div className="scene-cover">
+            <div className="cover-icon" aria-hidden="true">🛺</div>
+            <p className="cover-kicker">THIRD-PERSON DRIVING</p>
+            <h1>নেতার রাস্তা</h1>
+            <p>ঢাকার পথে আপনার 3D ড্রাইভিং যাত্রা শুরু করুন।</p>
+            <button className="primary-button" onClick={start}>ড্রাইভিং শুরু করুন <span>↗</span></button>
+            <span className="cover-hint">কীবোর্ড: ← → স্টিয়ারিং · ↑ গতি · ↓ রিভার্স · Space হর্ন</span>
+          </div>
+        )}
+        {view === 'paused' && (
+          <div className="scene-cover modal-cover">
+            <p className="cover-kicker">PAUSED</p>
+            <h2>বিরতি</h2>
+            <p>সিমুলেশন সাময়িকভাবে থামানো হয়েছে।</p>
+            <button className="primary-button" onClick={() => setView('running')}>আবার চালু করুন</button>
+          </div>
+        )}
+        {view === 'error' && (
+          <div className="scene-cover modal-cover error-cover">
+            <p className="cover-kicker">GRAPHICS ERROR</p>
+            <h2>3D চালু করা যায়নি</h2>
+            <p>{error}</p>
+            <button className="primary-button" onClick={() => setView('ready')}>আবার চেষ্টা করুন</button>
+          </div>
+        )}
+      </div>
+
+      <header className="game-topbar">
+        <div className="game-brand">
           <span className="brand-mark">ন</span>
-          <div><p className="eyebrow">একটি 3D ড্রাইভিং অভিজ্ঞতা</p><h1>নেতার রাস্তা</h1></div>
+          <div><strong>নেতার রাস্তা</strong><small>3D ড্রাইভিং</small></div>
         </div>
-        <span className="build-label">FOUNDATION / 01</span>
+        <div className="live-status" aria-live="polite">
+          <span className="status-dot" />
+          {view === 'running' ? 'চলছে' : view === 'paused' ? 'বিরতি' : 'প্রস্তুত'}
+        </div>
+        {view === 'running' && <button className="pause-button" onClick={() => setView('paused')} aria-label="গেম বিরতি দিন">Ⅱ</button>}
+        {view === 'paused' && <button className="pause-button" onClick={() => setView('running')} aria-label="গেম আবার চালু করুন">▶</button>}
       </header>
 
-      <section className="stage-heading">
-        <div><span className="section-kicker">THIRD-PERSON • THREE.JS</span><h2>ঢাকার পথে, এবার 3D-তে।</h2></div>
-        <p>প্রথম ধাপ: রিকশা, ক্যামেরা ও ড্রাইভিং কন্ট্রোলের 3D ভিত্তি।</p>
-      </section>
+      {view === 'running' && (
+        <>
+          <section className="game-hud" aria-label="গেমের অবস্থা">
+            <div className="hud-card speed-card">
+              <span>গতি</span>
+              <strong>{status.speed}<small> km/h*</small></strong>
+              <div className="metric-track"><i style={{ width: Math.min(100, status.speed / 180 * 100) + '%' }} /></div>
+            </div>
+            <div className="hud-card steering-card">
+              <span>স্টিয়ারিং</span>
+              <strong>{status.steering.toFixed(1)}</strong>
+            </div>
+          </section>
 
-      <section className="dashboard">
-        <div className="scene-shell">
-          <div className="scene-topline"><span><i className="status-dot" /> {view === 'running' ? 'LIVE PREVIEW' : '3D TEST SCENE'}</span><span>PORTRAIT VIEW</span></div>
-          <div className="scene-viewport" ref={hostRef}>
-            {view === 'ready' && <div className="scene-cover"><div className="cover-icon">🛺</div><p className="cover-kicker">THIRD-PERSON DRIVING</p><h3>রাস্তায় নামবেন?</h3><p>একটি 3D টেস্ট রোডে রিকশার কন্ট্রোল ও ক্যামেরা পরীক্ষা করুন।</p><button className="primary-button" onClick={start}>ড্রাইভিং শুরু করুন <span>↗</span></button></div>}
-            {view === 'paused' && <div className="scene-cover pause-cover"><p className="cover-kicker">PAUSED</p><h3>বিরতি</h3><p>সিমুলেশন থামানো হয়েছে।</p><button className="primary-button" onClick={() => setView('running')}>আবার চালু করুন</button></div>}
-            {view === 'error' && <div className="scene-cover error-cover"><p className="cover-kicker">GRAPHICS ERROR</p><h3>3D চালু করা যায়নি</h3><p>{error}</p><button className="primary-button" onClick={() => setView('ready')}>আবার চেষ্টা করুন</button></div>}
-            {view === 'running' && <div className="scene-overlay"><span>টেস্ট রোড · 3D</span><button onClick={() => setView('paused')} aria-label="বিরতি">Ⅱ</button></div>}
+          <div className="keyboard-hint" aria-label="কীবোর্ড নির্দেশনা">
+            <span><kbd>←</kbd><kbd>→</kbd> স্টিয়ারিং</span>
+            <span><kbd>↑</kbd> GO</span>
+            <span><kbd>↓</kbd> REV</span>
+            <span><kbd>Space</kbd> হর্ন</span>
+            <span><kbd>Esc</kbd> বিরতি</span>
           </div>
-          <div className="scene-footline"><span>WEBGL RENDERER</span><span>CHASE CAMERA</span><span>60 Hz SIMULATION</span></div>
-        </div>
 
-        <aside className="drive-panel">
-          <div className="panel-title"><span className="section-kicker">VEHICLE STATUS</span><h3>রিকশার নিয়ন্ত্রণ</h3></div>
-          <div className="metric-card"><span>গতি</span><strong>{view === 'running' ? status.speed : 0}<small> km/h*</small></strong><div className="metric-track"><i style={{ width: Math.min(100, status.speed / 180 * 100) + '%' }} /></div></div>
-          <div className="metric-card compact"><span>স্টিয়ারিং অবস্থান</span><strong>{status.steering.toFixed(1)}</strong></div>
-          <div className="control-instructions"><p>কীবোর্ড</p><div><kbd>←</kbd><kbd>→</kbd><span>স্টিয়ারিং</span></div><div><kbd>↑</kbd><span>গতি</span><kbd>↓</kbd><span>ধীর / রিভার্স</span></div><div><kbd>Space</kbd><span>হর্ন লাইট</span></div><div><kbd>Esc</kbd><span>বিরতি</span></div></div>
-          <p className="provisional-note">*এটি ভিজ্যুয়াল টেস্টের প্রাথমিক গতি-স্কেল; চূড়ান্ত গেমপ্লে ব্যালান্স নয়।</p>
-        </aside>
-      </section>
-
-      {view === 'running' && <section className="touch-controls" aria-label="টাচ কন্ট্রোল">
-        <div className="control-cluster">
-          <button onPointerDown={() => setTouch('left', true)} onPointerUp={() => setTouch('left', false)} onPointerCancel={() => setTouch('left', false)} onPointerLeave={() => setTouch('left', false)}>←</button>
-          <button onPointerDown={() => setTouch('right', true)} onPointerUp={() => setTouch('right', false)} onPointerCancel={() => setTouch('right', false)} onPointerLeave={() => setTouch('right', false)}>→</button>
-        </div>
-        <div className="control-cluster">
-          <button className="secondary-control" onPointerDown={() => setTouch('reverse', true)} onPointerUp={() => setTouch('reverse', false)} onPointerCancel={() => setTouch('reverse', false)} onPointerLeave={() => setTouch('reverse', false)}>REV</button>
-          <button className="go-control" onPointerDown={() => setTouch('accelerate', true)} onPointerUp={() => setTouch('accelerate', false)} onPointerCancel={() => setTouch('accelerate', false)} onPointerLeave={() => setTouch('accelerate', false)}>GO</button>
-          <button className="secondary-control" onPointerDown={() => setTouch('horn', true)} onPointerUp={() => setTouch('horn', false)} onPointerCancel={() => setTouch('horn', false)} onPointerLeave={() => setTouch('horn', false)}>HORN</button>
-        </div>
-      </section>}
-
-      <footer className="page-footer"><span>নেতার রাস্তা</span><span>এটি প্রাথমিক 3D foundation — সম্পূর্ণ গেম নয়।</span></footer>
+          <section className="touch-controls" aria-label="ড্রাইভিং কন্ট্রোল">
+            <div className="control-cluster steering-controls">
+              <button aria-label="বামে ঘুরুন" {...bindHold('left')}>←</button>
+              <button aria-label="ডানে ঘুরুন" {...bindHold('right')}>→</button>
+            </div>
+            <div className="control-cluster action-controls">
+              <button className="secondary-control" aria-label="রিভার্স" {...bindHold('reverse')}>REV</button>
+              <button className="go-control" aria-label="সামনে চলুন" {...bindHold('accelerate')}>GO</button>
+              <button className="secondary-control" aria-label="হর্ন" {...bindHold('horn')}>HORN</button>
+            </div>
+          </section>
+          <p className="provisional-note">*প্রাথমিক টেস্ট গতি-স্কেল</p>
+        </>
+      )}
     </main>
   );
 }
