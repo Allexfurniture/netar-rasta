@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
 import { DrivingScene, type SceneStatus } from './game/render/three/DrivingScene';
+import { ROAD_EDGES, ROAD_NODES } from './game/world/RoadGraph';
 
 type ViewState = 'ready' | 'running' | 'paused' | 'victory' | 'error';
 
@@ -8,7 +9,7 @@ export default function App() {
   const sceneRef = useRef<DrivingScene | null>(null);
   const [view, setView] = useState<ViewState>('ready');
   const [sceneMounted, setSceneMounted] = useState(false);
-  const [status, setStatus] = useState<SceneStatus>({ speed: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false });
+  const [status, setStatus] = useState<SceneStatus>({ speed: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, currentDistrict: 'ফার্মগেট', roadX: 0 });
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -134,6 +135,19 @@ export default function App() {
               <span>দূরত্ব</span>
               <strong>{status.distance}<small> m</small></strong>
               <div className="metric-track"><i style={{ width: Math.min(100, status.distance / 1200 * 100) + '%' }} /></div>
+            </div>
+            <div className="hud-card route-map-card" aria-label="রোড গ্রাফ মিনিম্যাপ">
+              <span>রুট · {status.currentDistrict}</span>
+              <svg viewBox="0 0 120 180" role="img" aria-label="ফার্মগেট, শাহবাগ ও ধানমন্ডির সংযুক্ত রাস্তা" style={{ width: 64, height: 96, display: 'block', margin: '3px auto 0' }}>
+                {ROAD_EDGES.map(edge => {
+                  const from = ROAD_NODES.find(node => node.id === edge.from)!;
+                  const to = ROAD_NODES.find(node => node.id === edge.to)!;
+                  return <line key={edge.id} x1={60 + from.x * 2.6} y1={8 + from.distance * 0.13} x2={60 + to.x * 2.6} y2={8 + to.distance * 0.13} stroke={edge.choice === 0 ? '#e7e1d3' : '#b7a98d'} strokeWidth={edge.choice === 0 ? 3 : 2} strokeLinecap="round" />;
+                })}
+                {ROAD_NODES.filter(node => ['farmgate','shahbagh','dhanmondi','finish'].includes(node.id)).map(node => <circle key={node.id} cx={60 + node.x * 2.6} cy={8 + node.distance * 0.13} r="3" fill="#f0c76d" stroke="#263d36" strokeWidth="1" />)}
+                <circle cx={60 + status.roadX * 2.6} cy={8 + status.distance * 0.13} r="4.2" fill="#ff674f" stroke="#fff" strokeWidth="1.5" />
+              </svg>
+              <small style={{ display: 'block', textAlign: 'center' }}>লাইভ অবস্থান</small>
             </div>
           </section>
 
