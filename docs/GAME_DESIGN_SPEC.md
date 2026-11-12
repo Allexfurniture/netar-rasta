@@ -241,19 +241,22 @@ Do not silently promote prototype tuning values to final game balance.
 
 ## 12. Current 3D prototype status and known gaps
 
-The current Three.js prototype renders the starter connected road graph as 3D road ribbons, follows graph edges in a third-person chase camera, selects connected roads at junctions, and displays a persistent Bengali minimap driven by the same graph coordinates. Traffic now includes pooled-at-startup prototype agents representing buses, cars, CNGs, rickshaws, and motorcycles. Each agent follows directed graph edges, selects a connected outgoing edge at junctions, maintains a basic same-edge following headway, uses a lane offset, and participates in rate-limited player collision handling. Basic landmark props, touch/keyboard controls, provisional driving balance, battery HUD, and start/Game Over screens remain.
+The current deployed prototype is a forward-running straight-road vertical slice, not yet the full connected Farmgate–Shahbagh–Dhanmondi road graph. It includes a third-person camera, provisional steering across a limited lateral road corridor, finish-line distance trigger, touch/keyboard controls, a procedural electric auto-rickshaw/easybike player model, and a stylized Dhaka-inspired street corridor.
 
-It is not the completed game. The initial visual blockout has been upgraded with a procedural Bangladesh-style electric auto-rickshaw/easybike silhouette, visible driver, front cockpit, windscreen, rear passenger compartment and roof, varied shopfront facades, roadside trees/stalls, and illustrative traffic/pedestrian set dressing. The player vehicle is still prototype geometry; a licensed optimized GLB asset remains a candidate for replacement after inspection. These are still prototype geometry, not final production art. Outstanding work:
-- Replace the straight prototype corridor with the full connected 3D road graph.
-- Implement junction turns and a persistent minimap.
-- Build final Farmgate, Shahbagh, Dhanmondi, Parliament landmark, bus stops, and decorative signals.
-- Replace procedural blockout vehicle/character meshes with quality production assets or artist-authored models; refine traffic AI with hands-on validation, lane discipline at junctions, and robust multi-agent collision avoidance.
-- Add pedestrians, 5–10 chaser pursuit, and caught/escape outcomes.
-- Replace provisional collision and battery values with approved balancing.
-- Implement exact 5-second charging rule with map-based station radius.
+The latest environment pass adds visible junction/crosswalk set pieces, Bengali district wayfinding signs for Farmgate, Shahbagh, and Dhanmondi, decorative traffic signals, overhead utility cables, a stylized National Parliament landmark silhouette, and a broader set of ambient traffic silhouettes: buses, cars, CNGs, battery electric auto-rickshaws/easybikes, pedal rickshaws, and motorcycles. These traffic and environment objects currently scroll as decorative scenery; they are not yet a graph-routed traffic simulation, and the junction props do not yet provide selectable road branches.
+
+The scene remains procedural prototype geometry, not production-grade art. The Parliament landmark is an illustrative silhouette rather than a geographically accurate reconstruction. Bengali signboard rendering depends on available browser fonts. Outstanding work:
+- Build a real connected road graph with traversable junction branches between Farmgate, Shahbagh, and Dhanmondi; drive the player on graph edges rather than lateral movement along a straight corridor.
+- Make the minimap derive from the same graph and current player edge/position.
+- Convert traffic into lane-aware agents with graph routing, following/headway, pooling, collision shapes, and validated collision handling.
+- Replace procedural player and traffic vehicle meshes with optimized, properly licensed production GLB assets or artist-authored models after review.
+- Add animated pedestrians, 5–10 chaser pursuit, and caught/escape outcomes.
+- Complete the Parliament landmark, bus stops, charging stations, and district-specific environment dressing.
+- Replace provisional collision and battery values with approved balancing and implement exact 5-second charging.
 - Add horn, engine, traffic pass-by, collision, boost, and pursuit reaction sound effects.
 - Implement guest sessions, cloud leaderboard, and server-side score validation.
 - Complete mobile browser QA, performance profiling, and accessibility checks.
+
 
 ## 13. Development sequence
 
