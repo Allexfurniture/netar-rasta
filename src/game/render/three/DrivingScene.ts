@@ -299,9 +299,6 @@ export class DrivingScene {
     const chrome = this.material(0xb9c8bd, 0.34);
     const rubber = this.material(0x202523, 0.98);
     const gold = this.material(0xe9bb58, 0.48);
-    const red = this.material(0xc94b3f);
-    const green = this.material(0x16815b);
-    const blue = this.material(0x2f7891);
 
     const rod = (a: THREE.Vector3, b: THREE.Vector3, radius: number, mat: THREE.Material) => {
       const delta = new THREE.Vector3().subVectors(b, a);
