@@ -292,6 +292,39 @@ export class DrivingScene {
       }
       const aircon = this.box(0.72, 0.42, 0.42, 0xe9e5d8, x + width * 0.34, height - 1.4, z + 5.45);
       this.scene.add(aircon); this.movingWorld.push(aircon);
+
+      // Architectural pass: facade pilasters, window mullions, balcony rails,
+      // rooftop water tank and dish. Shared low-poly primitives keep mobile cost bounded.
+      for (const edge of [-1, 1]) {
+        const pilaster = this.box(0.16, height - 0.5, 0.18, 0xb9a78d, x + edge * (width * 0.46), height / 2, z + 5.34);
+        this.scene.add(pilaster); this.movingWorld.push(pilaster);
+      }
+      for (let floor = 1; floor < Math.max(2, Math.floor(height / 3)); floor++) {
+        const slab = this.box(width * 0.94, 0.1, 0.22, 0x9c8d78, x, floor * 2.65 + 0.45, z + 5.42);
+        this.scene.add(slab); this.movingWorld.push(slab);
+        for (let col = 0; col < 3; col++) {
+          const wx = x + (col - 1) * width * 0.27;
+          const mullion = this.box(0.055, 1.25, 0.13, 0xd8d0bd, wx, 1.65 + floor * 2.65, z + 5.39);
+          this.scene.add(mullion); this.movingWorld.push(mullion);
+          const railTop = this.box(1.42, 0.055, 0.055, 0xd8d0bd, wx, 1.65 + floor * 2.65 - 0.3, z + 5.83);
+          this.scene.add(railTop); this.movingWorld.push(railTop);
+        }
+      }
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 1.35, 12), this.material(0x66858a, 0.72));
+      tank.position.set(x + width * 0.22, height + 0.86, z - 1.3);
+      tank.castShadow = true; this.scene.add(tank); this.movingWorld.push(tank);
+      const tankCap = this.box(1.42, 0.12, 1.42, 0x526c70, x + width * 0.22, height + 1.57, z - 1.3);
+      this.scene.add(tankCap); this.movingWorld.push(tankCap);
+      const dish = new THREE.Mesh(new THREE.SphereGeometry(0.48, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), this.material(0xc8c9bd, 0.55));
+      dish.position.set(x - width * 0.24, height + 0.55, z - 1.6);
+      dish.rotation.x = -0.45; this.scene.add(dish); this.movingWorld.push(dish);
+      // Condenser grille and drain pipe make shop AC units read as real equipment.
+      for (let vent = 0; vent < 4; vent++) {
+        const grille = this.box(0.045, 0.3, 0.025, 0x8d9892, x + width * 0.34 - 0.2 + vent * 0.13, height - 1.4, z + 5.68);
+        this.scene.add(grille); this.movingWorld.push(grille);
+      }
+      const drainPipe = this.box(0.045, 1.15, 0.045, 0x8b9288, x + width * 0.4, height - 2.1, z + 5.5);
+      this.scene.add(drainPipe); this.movingWorld.push(drainPipe);
     }
 
     // Street trees, utility poles, overhead cables and lamps.
@@ -412,6 +445,21 @@ export class DrivingScene {
       }
     }
 
+    // Street hardware: drain covers, tactile paving, bins and pedestrian crossing posts.
+    for (let i = 0; i < 10; i++) {
+      const z = -34 - i * 24;
+      for (const side of [-1,1]) {
+        const bin = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.2,0.72,10),this.material(0x4f7167));
+        body.position.y=0.38; bin.add(body);
+        const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,0.08,10),this.material(0x303a36));
+        lid.position.y=0.78; bin.add(lid);
+        bin.position.set(side*9.1,0,z); addMoving(bin);
+        for (let grate=0; grate<5; grate++) {
+          addMoving(this.box(0.06,0.035,1.0,0x505752,side*7.55,0.15,z-0.5+grate*0.22));
+        }
+      }
+    }
     // Painted curb bollards and reflective road studs around junction approaches.
     for (let i = 0; i < 18; i++) {
       const z = -22 - i * 13;
@@ -496,6 +544,65 @@ export class DrivingScene {
           addBox(1.85,0.16,0.18,this.material(0xe9d7a9),0,0.38,-length*0.42);
           for (const wx of [-0.82,0.82]) for (const wz of [-length*0.32,length*0.32]) wheel(wx,wz,0.34);
         }
+      }
+
+      // Vehicle-specific finishing kit: lamps, bumpers, mirrors, doors and trim.
+      const lampMat = new THREE.MeshStandardMaterial({ color: 0xffedbd, emissive: 0x8a6a2d, emissiveIntensity: 0.22, roughness: 0.28 });
+      const redLamp = this.material(0xb93d35, 0.42);
+      const addLamp = (px:number, py:number, pz:number, color:THREE.Material) => addBox(0.22,0.14,0.055,color,px,py,pz);
+      if (kind === 'bus') {
+        addBox(2.76,0.14,0.16,chrome,0,0.56,-3.16);
+        for (const wx of [-0.96,0.96]) {
+          addLamp(wx,0.82,-3.18,lampMat); addLamp(wx,0.82,3.18,redLamp);
+          addBox(0.045,0.7,0.045,chrome,wx,1.92,-3.17);
+        }
+        for (let col=0; col<6; col++) {
+          addBox(0.055,0.62,0.07,chrome,(col-2.5)*0.43,1.92,-3.19);
+          addBox(0.38,0.055,0.07,chrome,(col-2.5)*0.43,1.57,-3.19);
+        }
+        addBox(0.82,0.2,0.12,this.material(0x263b39),0,2.75,-3.2);
+      } else if (kind === 'car' || kind === 'cng') {
+        const w = kind === 'cng' ? 1.5 : 1.9;
+        const len = kind === 'cng' ? 2.7 : 3.4;
+        addBox(w*0.82,0.1,0.08,chrome,0,1.0,-len*0.5);
+        addBox(w*0.82,0.1,0.08,chrome,0,1.0,len*0.5);
+        for (const side of [-1,1]) {
+          addLamp(side*w*0.36,0.84,-len*0.49,lampMat);
+          addLamp(side*w*0.36,0.84,len*0.49,redLamp);
+          addBox(0.12,0.12,0.32,chrome,side*(w*0.53),1.72,-0.58);
+          if (kind === 'car') {
+            addBox(0.045,0.52,len*0.42,chrome,side*(w*0.5),1.46,0.08);
+            addBox(0.62,0.06,0.08,chrome,side*0.48,0.48,0.12);
+          } else {
+            addBox(0.05,0.72,len*0.46,chrome,side*(w*0.5),1.43,0.08);
+            addBox(0.055,0.5,0.055,chrome,side*(w*0.5),1.55,-0.62);
+          }
+        }
+        addBox(w*0.45,0.14,0.08,chrome,0,0.45,-len*0.51);
+      } else if (kind === 'bike') {
+        addBox(0.62,0.28,0.24,bodyMat,0,0.86,-0.18);
+        addBox(0.12,0.12,0.12,lampMat,0,1.13,-0.55);
+        addBox(0.86,0.055,0.055,chrome,0,1.37,-0.2);
+        for (const side of [-1,1]) {
+          const mirror = new THREE.Mesh(new THREE.SphereGeometry(0.09,10,8),chrome);
+          mirror.position.set(side*0.43,1.55,-0.22); group.add(mirror);
+          addBox(0.055,0.32,0.055,chrome,side*0.38,1.48,-0.18);
+        }
+      } else if (kind === 'auto') {
+        for (const side of [-1,1]) {
+          addBox(0.07,0.7,0.07,chrome,side*0.72,1.58,-0.6);
+          addBox(0.09,0.12,0.12,lampMat,side*0.56,1.0,-1.37);
+          addBox(0.09,0.12,0.12,redLamp,side*0.68,0.92,1.38);
+          addBox(0.055,0.42,1.2,chrome,side*0.79,1.43,0.65);
+        }
+        addBox(1.32,0.08,0.08,chrome,0,0.55,1.43);
+      } else if (kind === 'rickshaw') {
+        // Hand-painted hood ribs and visible pedal/crank detail distinguish it from an easybike.
+        for (let stripe=0; stripe<5; stripe++) addBox(0.12,0.035,1.35,this.material([0xffd45b,0xf2e8cf,0x267e59,0xf2e8cf,0xc84e42][stripe]),-0.5+stripe*0.25,1.81,0.72);
+        addBox(0.08,0.08,0.7,chrome,0,0.62,0.15);
+        addBox(0.52,0.055,0.06,chrome,0,0.58,0.15);
+        addBox(0.12,0.1,0.12,chrome,0.26,0.58,0.15);
+        addLamp(-0.48,1.0,-1.2,lampMat); addLamp(0.48,1.0,-1.2,lampMat);
       }
       this.scene.add(group);
       return group;
