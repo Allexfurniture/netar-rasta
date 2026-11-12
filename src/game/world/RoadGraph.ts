@@ -86,7 +86,6 @@ export function advanceRoad(state: RoadState, amount: number, steer: number): Ro
     }
   }
   const point = getRoadPoint(edgeId, edgeProgress);
-  const currentNode = nodeById.get(nodeId);
   const district = distance < 112 ? 'ফার্মগেট' : distance < 202 ? 'শাহবাগ' : 'ধানমন্ডি';
   const nextChoices = outgoing(nodeId)
     .filter(edge => edge.choice !== 0)
