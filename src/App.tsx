@@ -57,7 +57,7 @@ export default function App() {
     setView('running');
   }, []);
 
-  const setTouch = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'horn' | 'boost', pressed: boolean) => {
+  const setTouch = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'brake' | 'boost', pressed: boolean) => {
     sceneRef.current?.setTouch(key, pressed);
   };
 
@@ -81,7 +81,7 @@ export default function App() {
             <h1>নেতার রাস্তা</h1>
             <p>ঢাকার পথে আপনার 3D ড্রাইভিং যাত্রা শুরু করুন।</p>
             <button className="primary-button" onClick={start}>ড্রাইভিং শুরু করুন <span>↗</span></button>
-            <span className="cover-hint">কীবোর্ড: ← → স্টিয়ারিং · ↑ গতি · ↓ রিভার্স · Space হর্ন</span>
+            <span className="cover-hint">কীবোর্ড: ← → দিক · ↑ চলুন · X ব্রেক · ↓ পিছনে · Shift টান · Space হর্ন</span>
           </div>
         )}
         {view === 'gameover' && (
@@ -135,7 +135,7 @@ export default function App() {
 
       {view === 'running' && (
         <>
-          {status.pursuitActive && <div className="pursuit-alert" role="status">সতর্কতা: পেছনে ধাওয়া শুরু হয়েছে! BOOST দিয়ে দূরত্ব বাড়ান</div>}
+          {status.pursuitActive && <div className="pursuit-alert" role="status">সতর্কতা: পেছনে ধাওয়া শুরু হয়েছে! টান দিয়ে দূরত্ব বাড়ান</div>}
           <section className="game-hud" aria-label="গেমের অবস্থা">
             <div className="hud-card speed-card">
               <span>গতি</span>
@@ -164,23 +164,24 @@ export default function App() {
 
           <div className="keyboard-hint" aria-label="কীবোর্ড নির্দেশনা">
             <span><kbd>←</kbd><kbd>→</kbd> স্টিয়ারিং</span>
-            <span><kbd>↑</kbd> GO</span>
-            <span><kbd>↓</kbd> REV</span>
+            <span><kbd>↑</kbd> চলুন</span>
+            <span><kbd>X</kbd> ব্রেক</span>
+            <span><kbd>↓</kbd> পিছনে</span>
             <span><kbd>Space</kbd> হর্ন</span>
-            <span><kbd>Shift</kbd> BOOST</span>
+            <span><kbd>Shift</kbd> টান</span>
             <span><kbd>Esc</kbd> বিরতি</span>
           </div>
 
           <section className="touch-controls" aria-label="ড্রাইভিং কন্ট্রোল">
-            <div className="control-cluster steering-controls">
-              <button aria-label="বামে ঘুরুন" {...bindHold('left')}>←</button>
-              <button aria-label="ডানে ঘুরুন" {...bindHold('right')}>→</button>
+            <div className="control-cluster steering-controls" aria-label="দিক নিয়ন্ত্রণ">
+              <button className="direction-control" aria-label="বামে" {...bindHold('left')}>বামে</button>
+              <button className="direction-control" aria-label="ডানে" {...bindHold('right')}>ডানে</button>
             </div>
-            <div className="control-cluster action-controls">
-              <button className="secondary-control" aria-label="রিভার্স" {...bindHold('reverse')}>REV</button>
-              <button className="go-control" aria-label="সামনে চলুন" {...bindHold('accelerate')}>GO</button>
-              <button className="secondary-control" aria-label="হর্ন" {...bindHold('horn')}>HORN</button>
-              <button className={'secondary-control boost-control' + (status.boostActive ? ' is-active' : '')} aria-label="বুস্ট" {...bindHold('boost')}>BOOST</button>
+            <div className="control-cluster action-controls" aria-label="গতি নিয়ন্ত্রণ">
+              <button className="go-control" aria-label="চলুন" {...bindHold('accelerate')}>চলুন</button>
+              <button className="brake-control" aria-label="ব্রেক" {...bindHold('brake')}>ব্রেক</button>
+              <button className={'boost-control' + (status.boostActive ? ' is-active' : '')} aria-label="টান" {...bindHold('boost')}>টান</button>
+              <button className="reverse-control" aria-label="পিছনে" {...bindHold('reverse')}>পিছনে</button>
             </div>
           </section>
           <p className="provisional-note">*প্রাথমিক টেস্ট গতি-স্কেল · ফিনিশ দূরত্ব পরীক্ষামূলক</p>
