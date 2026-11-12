@@ -51,8 +51,8 @@ export class InputController {
     const brake = this.keys.has('x') || this.touch.has('brake');
     const boost = this.keys.has('shift') || this.touch.has('boost');
     const snapshot = {
-      // Screen-space steering is intentionally inverted to match the player's viewed driving direction.
-      steer: Number(left) - Number(right),
+      // Left is negative X and right is positive X throughout the road graph and scene.
+      steer: Number(right) - Number(left),
       accelerate,
       reverse,
       brake,
