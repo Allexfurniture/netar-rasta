@@ -56,3 +56,23 @@ Rebuild the game on a clean feature branch from `main`, following the approved p
 
 ## Acceptance rule
 A stage is not complete merely because TypeScript or Vite builds. It must pass its defined behavior checks in a running browser, with evidence recorded in the PR.
+
+
+## Execution status — 2026-11-12
+### Stage 0 — Product and architecture baseline
+- [x] Approved product specification copied from the design branch.
+- [x] Rebuild sequence and acceptance rule documented.
+- [x] Runtime, input, graph, testing, and security boundaries documented.
+
+### Stage 1 — 3D visual/technical vertical slice
+- [x] Phaser removed from the clean rebuild branch; Three.js installed.
+- [x] Fixed-step 60 Hz simulation loop added.
+- [x] Keyboard/touch input abstraction added, including pointer cancellation and blur cleanup.
+- [x] Procedural rickshaw, test road, sidewalks, blockout buildings, lighting, and chase camera added.
+- [x] Responsive Bengali start/pause/error shell added.
+- [x] Resize handling, renderer disposal, and initialization error fallback added.
+- [x] GitHub Actions TypeScript + Vite production build passed.
+- [x] Vercel Preview deployment reached READY and returned HTTP 200.
+- [ ] Manual interactive browser and Android device QA — outstanding; do not mark Stage 1 accepted until reviewed.
+
+**Current preview is a foundation test scene only.** It is not the finished game or final art direction. Stage 2 must wait for review of camera framing, rickshaw proportions, scene composition, and control feel.
