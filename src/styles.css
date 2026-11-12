@@ -207,3 +207,13 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
  .finish-stats strong{font-size:16px}
  .modal-cover{overflow-y:auto;justify-content:flex-start;padding-top:max(62px,env(safe-area-inset-top) + 50px);padding-bottom:20px}
 }
+
+
+/* Battery/charging HUD */
+.battery-card{min-width:76px}
+.battery-card strong{font-size:17px}
+@media(max-width:600px){
+  .game-hud{display:grid;grid-template-columns:auto auto;align-items:start}
+  .battery-card{min-width:66px}
+  .battery-card strong{font-size:15px}
+}
