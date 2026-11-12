@@ -293,127 +293,100 @@ export class DrivingScene {
   }
 
   private buildRickshaw() {
-    // Bangladesh pedal rickshaw silhouette: one bicycle front wheel, two rear wheels,
-    // open passenger carriage, decorated canopy and a visible cartoon driver.
-    const steel = this.material(0x263a35, 0.52);
-    const chrome = this.material(0xb9c8bd, 0.34);
-    const rubber = this.material(0x202523, 0.98);
-    const gold = this.material(0xe9bb58, 0.48);
+    // Bangladesh-style battery electric auto-rickshaw / easybike.
+    // No bicycle frame, pedals, chain or cycle-rickshaw carriage.
+    const frame = this.material(0x263c39, 0.58);
+    const trim = this.material(0xd9c9a5, 0.48);
+    const rubber = this.material(0x202523, 0.96);
+    const glass = new THREE.MeshStandardMaterial({ color: 0x8ebbc4, roughness: 0.2, metalness: 0.12, transparent: true, opacity: 0.78 });
+    const body = this.material(0x16845e, 0.48);
+    const accent = this.material(0xe6bd58, 0.5);
+    const dark = this.material(0x343b39, 0.82);
 
-    const rod = (a: THREE.Vector3, b: THREE.Vector3, radius: number, mat: THREE.Material) => {
-      const delta = new THREE.Vector3().subVectors(b, a);
-      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, delta.length(), 8), mat);
+    const addBox = (w:number,h:number,d:number,color:THREE.Material,x:number,y:number,z:number) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),color);
+      mesh.position.set(x,y,z); mesh.castShadow=true; mesh.receiveShadow=true;
+      this.player.add(mesh); return mesh;
+    };
+    const addRod = (a:THREE.Vector3,b:THREE.Vector3,r:number,mat:THREE.Material) => {
+      const delta=new THREE.Vector3().subVectors(b,a);
+      const mesh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,delta.length(),8),mat);
       mesh.position.copy(a).add(b).multiplyScalar(0.5);
-      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize());
-      mesh.castShadow = true;
-      this.player.add(mesh);
-      return mesh;
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
+      mesh.castShadow=true; this.player.add(mesh); return mesh;
     };
-    const sphere = (radius: number, color: THREE.ColorRepresentation, x: number, y: number, z: number, scale?: [number,number,number]) => {
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 16, 12), this.material(color));
-      mesh.position.set(x,y,z);
-      if (scale) mesh.scale.set(...scale);
-      mesh.castShadow = true;
-      this.player.add(mesh);
-      return mesh;
-    };
-
-    // Main chassis and bicycle frame, with visible metal tubing.
-    const lower = this.box(1.65, 0.16, 2.45, 0x16815b, 0, 0.64, 0.12);
-    this.player.add(lower);
-    rod(new THREE.Vector3(0,0.8,-0.95), new THREE.Vector3(0,1.05,0.1), 0.075, steel);
-    rod(new THREE.Vector3(0,1.05,0.1), new THREE.Vector3(0,0.72,1.05), 0.07, steel);
-    rod(new THREE.Vector3(0,0.72,1.05), new THREE.Vector3(0,0.8,-0.95), 0.055, steel);
-    rod(new THREE.Vector3(-0.72,0.72,0.92), new THREE.Vector3(0,0.72,1.05), 0.045, gold);
-    rod(new THREE.Vector3(0.72,0.72,0.92), new THREE.Vector3(0,0.72,1.05), 0.045, gold);
-
-    // Front bicycle fork, mudguard, handlebar and headlamp.
-    rod(new THREE.Vector3(0,0.82,-0.86), new THREE.Vector3(0,0.48,-1.43), 0.055, chrome);
-    rod(new THREE.Vector3(-0.18,0.48,-1.43), new THREE.Vector3(0.18,0.48,-1.43), 0.045, steel);
-    rod(new THREE.Vector3(-0.48,1.55,-0.88), new THREE.Vector3(0.48,1.55,-0.88), 0.045, chrome);
-    rod(new THREE.Vector3(-0.42,1.55,-0.88), new THREE.Vector3(-0.48,1.36,-0.88), 0.055, rubber);
-    rod(new THREE.Vector3(0.42,1.55,-0.88), new THREE.Vector3(0.48,1.36,-0.88), 0.055, rubber);
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 10), this.material(0xffe6a0,0.28));
-    lamp.position.set(0,1.14,-1.04); this.player.add(lamp);
-    const lampRing = new THREE.Mesh(new THREE.TorusGeometry(0.18,0.035,8,20), gold);
-    lampRing.position.copy(lamp.position); lampRing.rotation.y = Math.PI; this.player.add(lampRing);
-
-    // Three spoked wheels: a single front bicycle wheel and twin rear carriage wheels.
-    const wheelSpecs = [
-      {x:0,z:-1.45,r:0.48},
-      {x:-0.91,z:0.88,r:0.53},
-      {x:0.91,z:0.88,r:0.53},
-    ] as const;
-    for (const spec of wheelSpecs) {
-      const tire = new THREE.Mesh(new THREE.TorusGeometry(spec.r,0.105,10,28),rubber);
-      tire.position.set(spec.x,spec.r,spec.z);
-      tire.rotation.y = Math.PI / 2;
-      tire.castShadow = true;
-      this.player.add(tire);
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(spec.r*0.78,0.035,8,24),chrome);
-      rim.position.copy(tire.position); rim.rotation.copy(tire.rotation); this.player.add(rim);
-      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.105,0.105,0.24,12),gold);
-      hub.rotation.z = Math.PI/2; hub.position.copy(tire.position); this.player.add(hub);
-      for(let spoke=0;spoke<10;spoke++){
-        const angle=spoke*Math.PI/5;
-        const outer=new THREE.Vector3(spec.x,spec.r+Math.sin(angle)*spec.r*0.75,spec.z+Math.cos(angle)*spec.r*0.75);
-        const inner=new THREE.Vector3(spec.x,spec.r,spec.z);
-        rod(inner,outer,0.012,chrome);
-      }
-      const fender = new THREE.Mesh(new THREE.TorusGeometry(spec.r+0.1,0.035,6,24,Math.PI),gold);
-      fender.position.copy(tire.position); fender.rotation.set(Math.PI/2,0,0); this.player.add(fender);
+    const addWheel = (x:number,z:number,r:number,width:number) => {
+      const tire=new THREE.Mesh(new THREE.CylinderGeometry(r,r,width,20),rubber);
+      tire.rotation.z=Math.PI/2; tire.position.set(x,r,z); tire.castShadow=true; this.player.add(tire);
+      const hub=new THREE.Mesh(new THREE.CylinderGeometry(r*0.34,r*0.34,width+0.025,14),accent);
+      hub.rotation.z=Math.PI/2; hub.position.copy(tire.position); this.player.add(hub);
+      const rim=new THREE.Mesh(new THREE.TorusGeometry(r*0.7,0.035,7,20),trim);
+      rim.position.copy(tire.position); rim.rotation.y=Math.PI/2; this.player.add(rim);
       this.wheels.push(tire);
-    }
+    };
 
-    // Driver's saddle and a friendly stylized driver silhouette.
-    const saddle = this.box(0.62,0.14,0.48,0x342b24,0,1.08,-0.35); this.player.add(saddle);
-    const driverBody = new THREE.Mesh(new THREE.CapsuleGeometry(0.28,0.55,4,8),this.material(0x2c6c55));
-    driverBody.position.set(0,1.55,-0.18); driverBody.rotation.x=-0.18; this.player.add(driverBody);
-    sphere(0.25,0xb97850,0,2.02,-0.28,[0.92,1.05,0.9]);
-    // Hair, face, eyes and smile face forward toward the road (-Z).
-    sphere(0.23,0x24221f,0,2.2,-0.24,[1.02,0.52,0.95]);
-    sphere(0.035,0x171717,-0.085,2.05,-0.49);
-    sphere(0.035,0x171717,0.085,2.05,-0.49);
-    const smile = new THREE.Mesh(new THREE.TorusGeometry(0.075,0.018,6,12,Math.PI),this.material(0x542f29));
-    smile.position.set(0,1.96,-0.505); smile.rotation.z=Math.PI; this.player.add(smile);
-    rod(new THREE.Vector3(-0.2,1.7,-0.3),new THREE.Vector3(-0.43,1.52,-0.82),0.075,this.material(0xb97850));
-    rod(new THREE.Vector3(0.2,1.7,-0.3),new THREE.Vector3(0.43,1.52,-0.82),0.075,this.material(0xb97850));
+    // Low battery-vehicle chassis and three road wheels: one steerable front, two rear.
+    addBox(1.72,0.24,2.65,frame,0,0.62,0.12);
+    addWheel(0,-1.18,0.43,0.2);
+    addWheel(-0.91,0.91,0.48,0.2);
+    addWheel(0.91,0.91,0.48,0.2);
 
-    // Passenger carriage, upholstered bench, side panels and hand-painted motifs.
-    const carriage = this.box(1.78,0.52,1.58,0xc94b3f,0,1.02,0.76); this.player.add(carriage);
-    const seatBack = this.box(1.56,0.62,0.18,0x2f7891,0,1.58,1.42); this.player.add(seatBack);
-    const cushion = this.box(1.52,0.16,0.72,0xead2a2,0,1.36,0.78); this.player.add(cushion);
-    for(const side of [-1,1]){
-      const rail = this.box(0.12,0.46,1.48,0xe9bb58,side*0.91,1.34,0.75); this.player.add(rail);
-      for(let k=0;k<4;k++){
-        sphere(0.075,k%2?0xf5d98d:0x4b9b7b,side*0.985,1.38,0.2+k*0.36);
-      }
-      rod(new THREE.Vector3(side*0.88,1.1,0.12),new THREE.Vector3(side*0.88,1.85,1.42),0.045,gold);
+    // Front nose, bumper, fender, twin lamps and broad windscreen.
+    addBox(1.35,0.94,0.34,body,0,1.05,-1.18);
+    addBox(1.48,0.13,0.22,accent,0,0.66,-1.37);
+    addBox(1.2,0.08,0.18,trim,0,0.72,-1.39);
+    const windshield=addBox(1.28,0.78,0.055,glass,0,1.72,-1.08);
+    windshield.rotation.x=-0.12;
+    addRod(new THREE.Vector3(-0.72,1.28,-1.08),new THREE.Vector3(-0.72,2.08,-1.08),0.045,frame);
+    addRod(new THREE.Vector3(0.72,1.28,-1.08),new THREE.Vector3(0.72,2.08,-1.08),0.045,frame);
+    for(const x of [-0.48,0.48]){
+      const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.13,12,10),this.material(0xffe7a5,0.28));
+      lamp.position.set(x,1.05,-1.38); this.player.add(lamp);
+      const indicator=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.1,0.08),this.material(0xf0a33c));
+      indicator.position.set(x*1.45,0.98,-1.39); this.player.add(indicator);
     }
+    // Handlebar steering assembly; deliberately no pedals or bicycle chain.
+    addRod(new THREE.Vector3(0,1.55,-1.0),new THREE.Vector3(0,1.88,-0.92),0.055,trim);
+    addRod(new THREE.Vector3(-0.42,1.88,-0.92),new THREE.Vector3(0.42,1.88,-0.92),0.045,frame);
 
-    // High curved canopy supports and colorful fabric roof.
-    for(const side of [-1,1]){
-      rod(new THREE.Vector3(side*0.82,1.35,1.42),new THREE.Vector3(side*0.82,2.55,1.35),0.055,gold);
-      rod(new THREE.Vector3(side*0.82,2.55,1.35),new THREE.Vector3(side*0.82,2.72,-0.35),0.055,gold);
+    // Driver's enclosed/semi-open front cockpit and seat.
+    addBox(0.78,0.16,0.62,dark,0,1.12,-0.42);
+    const driverBody=new THREE.Mesh(new THREE.CapsuleGeometry(0.25,0.48,4,8),this.material(0x2c6c55));
+    driverBody.position.set(0,1.55,-0.48); driverBody.rotation.x=-0.12; this.player.add(driverBody);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(0.22,14,12),this.material(0xb97850));
+    head.position.set(0,2.0,-0.62); this.player.add(head);
+    const hair=new THREE.Mesh(new THREE.SphereGeometry(0.22,12,8),dark);
+    hair.scale.set(1,0.48,0.95); hair.position.set(0,2.12,-0.61); this.player.add(hair);
+    addRod(new THREE.Vector3(-0.2,1.68,-0.52),new THREE.Vector3(-0.38,1.82,-0.9),0.065,this.material(0xb97850));
+    addRod(new THREE.Vector3(0.2,1.68,-0.52),new THREE.Vector3(0.38,1.82,-0.9),0.065,this.material(0xb97850);
+
+    // Rear passenger compartment: solid lower body, open side windows, bench and roof.
+    addBox(1.88,0.72,1.72,body,0,1.08,0.88);
+    addBox(1.72,0.16,1.42,this.material(0x563c30),0,1.5,0.92);
+    addBox(1.78,0.14,1.82,accent,0,1.84,0.88);
+    addBox(1.78,0.12,1.82,body,0,2.65,0.88);
+    // Roof supports and open passenger windows are characteristic of local easybikes.
+    for(const x of [-0.82,0.82]){
+      addRod(new THREE.Vector3(x,1.42,0.02),new THREE.Vector3(x,2.65,0.02),0.045,frame);
+      addRod(new THREE.Vector3(x,1.42,1.72),new THREE.Vector3(x,2.65,1.72),0.045,frame);
+      addRod(new THREE.Vector3(x,2.65,0.02),new THREE.Vector3(x,2.65,1.72),0.045,accent);
+      addBox(0.08,0.48,1.5,trim,x,1.95,0.88);
     }
-    const canopy = new THREE.Mesh(new THREE.BoxGeometry(2.12,0.18,2.15),this.material(0xd84d43,0.72));
-    canopy.position.set(0,2.72,0.55); canopy.castShadow=true; this.player.add(canopy);
-    const canopyTop = new THREE.Mesh(new THREE.BoxGeometry(1.96,0.06,2.0),this.material(0x21845d));
-    canopyTop.position.set(0,2.84,0.55); this.player.add(canopyTop);
-    for(let stripe=0;stripe<7;stripe++){
-      const panel=this.box(0.27,0.045,1.95,stripe%2?0xf4d78c:0x2f8a68,(stripe-3)*0.28,2.89,0.55);
-      this.player.add(panel);
+    // Rear bench and seat back visible through the passenger opening.
+    addBox(1.45,0.16,0.52,this.material(0x6d4936),0,1.72,1.05);
+    addBox(1.48,0.5,0.14,this.material(0x704a37),0,1.98,1.62);
+    // Decorative front roof visor, rear lamps and side running boards.
+    addBox(1.96,0.12,0.36,accent,0,2.62,-0.98);
+    addBox(0.16,0.22,0.08,this.material(0xc84638),-0.82,1.02,1.78);
+    addBox(0.16,0.22,0.08,this.material(0xc84638),0.82,1.02,1.78);
+    addBox(0.18,0.12,1.48,frame,-1.0,0.58,0.82);
+    addBox(0.18,0.12,1.48,frame,1.0,0.58,0.82);
+    // Small side mirrors.
+    for(const x of [-0.76,0.76]){
+      addRod(new THREE.Vector3(x,1.72,-0.95),new THREE.Vector3(x*1.18,2.02,-0.88),0.025,frame);
+      const mirror=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.13,0.06),trim);
+      mirror.position.set(x*1.18,2.04,-0.88); this.player.add(mirror);
     }
-    // Decorative scalloped canopy fringe and rear hanging tassels.
-    for(let i=0;i<9;i++){
-      sphere(0.095,i%2?0xf1d28a:0xc7443b,(i-4)*0.23,2.58,-0.54);
-    }
-    for(const side of [-1,1]){
-      for(let i=0;i<3;i++){
-        rod(new THREE.Vector3(side*1.04,2.55,0.1+i*0.42),new THREE.Vector3(side*1.04,2.28,0.1+i*0.42),0.025,gold);
-      }
-    }
-    const rearLamp=this.box(0.42,0.18,0.08,0xffcf69,0,1.03,1.58); this.player.add(rearLamp);
   }
 
   private update(dt: number) {
