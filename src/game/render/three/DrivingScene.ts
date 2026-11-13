@@ -268,15 +268,26 @@ export class DrivingScene {
       this.scene.add(drain);
     }
 
+    // Sixty repeated lane dashes are one GPU draw call instead of sixty meshes.
+    // The parent is recycled as a 300m strip, preserving the 10m dash spacing.
     const lanePaint = this.material(0xf3e7bd);
+    const laneDashGeometry = new THREE.BoxGeometry(0.13, 0.028, 3.8);
+    const laneDashes = new THREE.InstancedMesh(laneDashGeometry, lanePaint, 60);
+    const dashMatrix = new THREE.Matrix4();
+    let dashIndex = 0;
     for (const x of [-2.5, 2.5]) {
       for (let i = 0; i < 30; i++) {
-        const dash = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.028, 3.8), lanePaint);
-        dash.position.set(x, 0.026, -i * 10 - 3);
-        this.scene.add(dash);
-        this.movingWorld.push(dash);
+        dashMatrix.makeTranslation(x, 0.026, -i * 10 - 3);
+        laneDashes.setMatrixAt(dashIndex++, dashMatrix);
       }
     }
+    laneDashes.instanceMatrix.needsUpdate = true;
+    laneDashes.computeBoundingSphere();
+    laneDashes.castShadow = false;
+    laneDashes.receiveShadow = false;
+    laneDashes.userData.recycleDistance = 300;
+    this.scene.add(laneDashes);
+    this.movingWorld.push(laneDashes);
     // Crosswalk and road-side paint add recognizable Dhaka street detail.
     for (let i = 0; i < 7; i++) {
       const stripe = new THREE.Mesh(new THREE.BoxGeometry(13.8, 0.035, 0.42), this.material(0xe9e3d2));
@@ -1250,7 +1261,7 @@ export class DrivingScene {
     this.chargingStations.forEach(station => { station.group.position.z = this.distance - station.distance; });
     this.movingWorld.forEach(object => {
       object.position.z += travel;
-      if (object.position.z > 14) object.position.z -= 228;
+      if (object.position.z > 14) object.position.z -= object.userData.recycleDistance ?? 228;
       if (object.userData.environmentLod) {
         const shouldShow = Math.abs(object.position.z) < 155;
         if (object.userData.lodVisible !== shouldShow) {
