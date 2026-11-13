@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
-import { DrivingScene, type CameraMode, type SceneStatus } from './game/render/three/DrivingScene';
+import type { CameraMode, SceneStatus } from './game/render/three/DrivingScene';
+type DrivingSceneInstance = import('./game/render/three/DrivingScene').DrivingScene;
 import { ROAD_EDGES, ROAD_NODES } from './game/world/RoadGraph';
 
 type ViewState = 'ready' | 'loading' | 'running' | 'paused' | 'victory' | 'gameover' | 'error';
@@ -8,7 +9,7 @@ const INITIAL_STATUS: SceneStatus = { speed: 0, maxSpeed: 0, score: 0, elapsedSe
 
 export default function App() {
   const hostRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<DrivingScene | null>(null);
+  const sceneRef = useRef<DrivingSceneInstance | null>(null);
   const [view, setView] = useState<ViewState>('ready');
   const [cameraMode, setCameraMode] = useState<CameraMode>('chase');
   const [sceneMounted, setSceneMounted] = useState(false);
@@ -27,9 +28,14 @@ export default function App() {
 
   useEffect(() => {
     if (!sceneMounted || !hostRef.current || sceneRef.current) return;
+    let cancelled = false;
     let lastPublish = 0;
-    try {
-      sceneRef.current = new DrivingScene(hostRef.current, (next) => {
+
+    // Keep the large Three.js driving engine out of the initial page bundle.
+    // It is fetched only after the player chooses to start a run.
+    void import('./game/render/three/DrivingScene').then(({ DrivingScene }) => {
+      if (cancelled || !hostRef.current) return;
+      const scene = new DrivingScene(hostRef.current, (next) => {
         const now = performance.now();
         const terminalState = next.caught || next.batteryEmpty || next.finished;
         if (now - lastPublish > 120 || terminalState) {
@@ -39,14 +45,22 @@ export default function App() {
           lastPublish = now;
         }
       });
+      if (cancelled) {
+        scene.dispose();
+        return;
+      }
+      sceneRef.current = scene;
       setView('running');
-    } catch (cause) {
+    }).catch((cause: unknown) => {
+      if (cancelled) return;
       const message = cause instanceof Error ? cause.message : 'WebGL চালু করা যায়নি';
       setError(message);
       setSceneMounted(false);
       setView('error');
-    }
+    });
+
     return () => {
+      cancelled = true;
       sceneRef.current?.dispose();
       sceneRef.current = null;
     };
