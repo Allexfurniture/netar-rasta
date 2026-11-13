@@ -75,6 +75,7 @@ export class DrivingScene {
   private hornTime = 0;
   private disposed = false;
   private readonly onStatus: (status: SceneStatus) => void;
+  private readonly boxGeometryCache = new Map<string, THREE.BoxGeometry>();
 
   constructor(private readonly host: HTMLElement, onStatus: (status: SceneStatus) => void) {
     this.onStatus = onStatus;
@@ -110,7 +111,15 @@ export class DrivingScene {
   }
 
   private box(width: number, height: number, depth: number, color: THREE.ColorRepresentation, x: number, y: number, z: number) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), this.material(color));
+    // Repeated facade, trim and street-detail boxes share GPU geometry by dimensions.
+    // Round the key to avoid duplicate buffers from insignificant float noise.
+    const key = `${width.toFixed(3)}:${height.toFixed(3)}:${depth.toFixed(3)}`;
+    let geometry = this.boxGeometryCache.get(key);
+    if (!geometry) {
+      geometry = new THREE.BoxGeometry(width, height, depth);
+      this.boxGeometryCache.set(key, geometry);
+    }
+    const mesh = new THREE.Mesh(geometry, this.material(color));
     mesh.position.set(x, y, z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -1315,13 +1324,20 @@ export class DrivingScene {
     this.loop.stop();
     this.resizeObserver.disconnect();
     this.input.dispose();
+    // A geometry/material may be referenced by many meshes. Dispose each GPU
+    // resource once rather than repeatedly disposing shared cached resources.
+    const geometries = new Set<THREE.BufferGeometry>();
+    const materials = new Set<THREE.Material>();
     this.scene.traverse(object => {
       if (object instanceof THREE.Mesh) {
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach(material => material.dispose());
+        geometries.add(object.geometry);
+        const meshMaterials = Array.isArray(object.material) ? object.material : [object.material];
+        meshMaterials.forEach(material => materials.add(material));
       }
     });
+    geometries.forEach(geometry => geometry.dispose());
+    materials.forEach(material => material.dispose());
+    this.boxGeometryCache.clear();
     this.renderer.dispose();
     this.materialCache.clear();
     this.renderer.domElement.remove();
