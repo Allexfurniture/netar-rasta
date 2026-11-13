@@ -276,6 +276,7 @@ export class DrivingScene {
       this.movingWorld.push(stripe);
     }
 
+    const buildingLodStart = this.movingWorld.length;
     const palette = [0xe7b87d, 0xd98e72, 0x9db9a4, 0xe5d3a7, 0xc3a1c9, 0xd9c5a4];
     for (let i = 0; i < 22; i++) {
       const side = i % 2 === 0 ? -1 : 1;
@@ -354,6 +355,17 @@ export class DrivingScene {
       }
       const drainPipe = this.box(0.045, 1.15, 0.045, 0x8b9288, x + width * 0.4, height - 2.1, z + 5.5);
       this.scene.add(drainPipe); this.movingWorld.push(drainPipe);
+    }
+
+    // Tag the complete building assemblies for distance culling. Their facade detail
+    // remains intact nearby, while distant buildings disappear beyond the fog horizon.
+    for (const object of this.movingWorld.slice(buildingLodStart)) {
+      object.userData.environmentLod = true;
+      object.userData.lodVisible = true;
+      if (object instanceof THREE.Mesh) {
+        object.castShadow = false;
+        object.receiveShadow = false;
+      }
     }
 
     // Street trees, utility poles, overhead cables and lamps.
@@ -1213,7 +1225,9 @@ export class DrivingScene {
     this.updateTraffic(dt);
     this.pedestrians.forEach(person => {
       if (person.knockedBack) return;
-      this.animatePerson(person, dt);
+      const pedestrianDepth = Math.abs(person.group.position.z);
+      person.group.visible = pedestrianDepth < 155;
+      if (pedestrianDepth < 88) this.animatePerson(person, dt);
       person.walkPhase += dt * 0.72;
       // Pedestrians wander within the roadside shoulder instead of standing in place.
       const sideWalk = 3.75 + (person.spawnIndex % 3) * 0.24 + Math.sin(person.walkPhase) * 0.82;
@@ -1228,6 +1242,13 @@ export class DrivingScene {
     this.movingWorld.forEach(object => {
       object.position.z += travel;
       if (object.position.z > 14) object.position.z -= 228;
+      if (object.userData.environmentLod) {
+        const shouldShow = Math.abs(object.position.z) < 155;
+        if (object.userData.lodVisible !== shouldShow) {
+          object.visible = shouldShow;
+          object.userData.lodVisible = shouldShow;
+        }
+      }
     });
     this.updatePedestrianCollisions(dt);
     this.hornTime = controls.horn ? 0.24 : Math.max(0, this.hornTime - dt);
