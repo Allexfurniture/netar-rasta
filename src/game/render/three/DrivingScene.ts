@@ -79,8 +79,11 @@ export class DrivingScene {
   constructor(private readonly host: HTMLElement, onStatus: (status: SceneStatus) => void) {
     this.onStatus = onStatus;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
+    const compactViewport = window.innerWidth < 700;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compactViewport ? 1.25 : 1.6));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.08;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setClearColor(0x9fc5c5);
@@ -95,8 +98,15 @@ export class DrivingScene {
     this.loop.start();
   }
 
+  private readonly materialCache = new Map<string, THREE.MeshStandardMaterial>();
+
   private material(color: THREE.ColorRepresentation, roughness = 0.86) {
-    return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.02 });
+    const key = `${String(color)}:${roughness}`;
+    const cached = this.materialCache.get(key);
+    if (cached) return cached;
+    const material = new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.02 });
+    this.materialCache.set(key, material);
+    return material;
   }
 
   private box(width: number, height: number, depth: number, color: THREE.ColorRepresentation, x: number, y: number, z: number) {
@@ -210,7 +220,26 @@ export class DrivingScene {
     ground.receiveShadow = true;
     this.scene.add(ground);
 
-    const road = new THREE.Mesh(new THREE.PlaneGeometry(15, 360), this.material(0x3d4140, 0.98));
+    // Small seamless procedural asphalt map adds fine grain without external assets.
+    const asphaltCanvas = document.createElement('canvas');
+    asphaltCanvas.width = 128; asphaltCanvas.height = 128;
+    const asphaltContext = asphaltCanvas.getContext('2d');
+    if (asphaltContext) {
+      asphaltContext.fillStyle = '#414644'; asphaltContext.fillRect(0, 0, 128, 128);
+      for (let i = 0; i < 720; i++) {
+        const px = (i * 73) % 128; const py = (i * 47) % 128;
+        const shade = 48 + ((i * 29) % 46);
+        asphaltContext.fillStyle = `rgba(${shade},${shade + 2},${shade},0.28)`;
+        asphaltContext.fillRect(px, py, 1 + (i % 3), 1 + (i % 2));
+      }
+    }
+    const asphaltTexture = new THREE.CanvasTexture(asphaltCanvas);
+    asphaltTexture.wrapS = THREE.RepeatWrapping; asphaltTexture.wrapT = THREE.RepeatWrapping;
+    asphaltTexture.repeat.set(3, 42);
+    asphaltTexture.colorSpace = THREE.SRGBColorSpace;
+    asphaltTexture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+    const asphaltMaterial = new THREE.MeshStandardMaterial({ map: asphaltTexture, color: 0xc2c6c2, roughness: 0.98, metalness: 0 });
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(15, 360), asphaltMaterial);
     road.rotation.x = -Math.PI / 2;
     road.position.set(0, 0, -120);
     road.receiveShadow = true;
@@ -485,19 +514,20 @@ export class DrivingScene {
   private buildStreetTraffic() {
     const vehicle = (kind: TrafficKind, color: number) => {
       const group = new THREE.Group();
+      const detailed = new THREE.Group();
       const bodyMat = this.material(color, 0.58);
       const glassMat = new THREE.MeshStandardMaterial({ color: 0x8db9c1, roughness: 0.22, metalness: 0.1 });
       const black = this.material(0x202522, 0.96);
       const chrome = this.material(0xb9c4bb, 0.42);
       const addBox = (w:number,h:number,d:number,c:THREE.Material,px:number,py:number,pz:number) => {
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),c);
-        mesh.position.set(px,py,pz); mesh.castShadow = true; group.add(mesh); return mesh;
+        mesh.position.set(px,py,pz); mesh.castShadow = true; detailed.add(mesh); return mesh;
       };
       const wheel = (wx:number,wz:number,r=0.32) => {
         const tire = new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.18,14),black);
-        tire.rotation.z = Math.PI/2; tire.position.set(wx,r,wz); group.add(tire);
+        tire.rotation.z = Math.PI/2; tire.position.set(wx,r,wz); detailed.add(tire);
         const hub = new THREE.Mesh(new THREE.CylinderGeometry(r*0.35,r*0.35,0.2,10),chrome);
-        hub.rotation.z = Math.PI/2; hub.position.copy(tire.position); group.add(hub);
+        hub.rotation.z = Math.PI/2; hub.position.copy(tire.position); detailed.add(hub);
       };
       if (kind === 'bus') {
         addBox(2.7,2.45,6.2,bodyMat,0,1.45,0);
@@ -520,7 +550,7 @@ export class DrivingScene {
         wheel(0,-1.05,0.38); wheel(-0.78,0.82,0.4); wheel(0.78,0.82,0.4);
         for (const wx of [-0.72,0.72]) {
           const support = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.92,7),chrome);
-          support.position.set(wx,1.62,0.72); group.add(support);
+          support.position.set(wx,1.62,0.72); detailed.add(support);
         }
       } else if (kind === 'rickshaw') {
         // Pedal rickshaw used as ambient traffic, visually distinct from the player's easybike.
@@ -530,7 +560,7 @@ export class DrivingScene {
         addBox(1.1,0.08,0.78,this.material(0xe8bd58),0,1.82,0.72);
         addBox(0.5,0.72,0.44,this.material(0x286b55),0,1.2,-0.42);
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.16,10,8),this.material(0xb97850));
-        head.position.set(0,1.7,-0.46); group.add(head);
+        head.position.set(0,1.7,-0.46); detailed.add(head);
       } else {
         const length = kind === 'cng' ? 2.7 : 3.4;
         if (kind === 'cng') {
@@ -585,7 +615,7 @@ export class DrivingScene {
         addBox(0.86,0.055,0.055,chrome,0,1.37,-0.2);
         for (const side of [-1,1]) {
           const mirror = new THREE.Mesh(new THREE.SphereGeometry(0.09,10,8),chrome);
-          mirror.position.set(side*0.43,1.55,-0.22); group.add(mirror);
+          mirror.position.set(side*0.43,1.55,-0.22); detailed.add(mirror);
           addBox(0.055,0.32,0.055,chrome,side*0.38,1.48,-0.18);
         }
       } else if (kind === 'auto') {
@@ -604,6 +634,34 @@ export class DrivingScene {
         addBox(0.12,0.1,0.12,chrome,0.26,0.58,0.15);
         addLamp(-0.48,1.0,-1.2,lampMat); addLamp(0.48,1.0,-1.2,lampMat);
       }
+      // Keep the authored detailed model close to the player, with a low-cost
+      // silhouette proxy for distant traffic. The outer Group keeps physics unchanged.
+      group.add(detailed);
+      const proxy = new THREE.Group();
+      const proxyBody = new THREE.Mesh(
+        new THREE.BoxGeometry(kind === 'bus' ? 2.5 : 1.65, kind === 'bus' ? 1.9 : 1.05, kind === 'bus' ? 5.6 : kind === 'bike' ? 1.7 : 3.0),
+        bodyMat
+      );
+      proxyBody.position.y = kind === 'bus' ? 1.25 : 0.85;
+      proxy.add(proxyBody);
+      const proxyGlass = new THREE.Mesh(
+        new THREE.BoxGeometry(kind === 'bus' ? 2.35 : 1.42, kind === 'bus' ? 0.7 : 0.48, 0.08),
+        glassMat
+      );
+      proxyGlass.position.set(0, kind === 'bus' ? 2.0 : 1.45, -0.8);
+      proxy.add(proxyGlass);
+      const proxyWheelRadius = kind === 'bus' ? 0.38 : 0.29;
+      const proxyWheelCount = kind === 'bike' ? 2 : kind === 'auto' || kind === 'cng' || kind === 'rickshaw' ? 3 : 4;
+      for (let wi = 0; wi < proxyWheelCount; wi++) {
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(proxyWheelRadius, proxyWheelRadius, 0.12, 8), black);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(wi % 2 === 0 ? -0.72 : 0.72, proxyWheelRadius, wi < 2 ? -1.0 : 1.0);
+        proxy.add(wheel);
+      }
+      proxy.visible = false;
+      group.add(proxy);
+      group.userData.highDetail = detailed;
+      group.userData.lowDetail = proxy;
       this.scene.add(group);
       return group;
     };
@@ -759,6 +817,19 @@ export class DrivingScene {
         agent.currentSpeed = agent.cruiseSpeed; agent.overlapping = false;
       }
       this.positionTrafficAgent(agent);
+      const depth = Math.abs(agent.state.distance - this.distance);
+      const highDetail = agent.group.userData.highDetail as THREE.Group | undefined;
+      const lowDetail = agent.group.userData.lowDetail as THREE.Group | undefined;
+      if (highDetail && lowDetail) {
+        const useHighDetail = depth < 82;
+        highDetail.visible = useHighDetail;
+        lowDetail.visible = !useHighDetail;
+        if (depth > 82) {
+          highDetail.traverse(object => {
+            if (object instanceof THREE.Mesh) object.castShadow = false;
+          });
+        }
+      }
       const dx = agent.group.position.x - this.player.position.x;
       const dz = agent.group.position.z;
       const heading = this.player.rotation.y;
@@ -1231,6 +1302,7 @@ export class DrivingScene {
       }
     });
     this.renderer.dispose();
+    this.materialCache.clear();
     this.renderer.domElement.remove();
   }
 }
