@@ -812,6 +812,13 @@ export class DrivingScene {
         const innerRim = new THREE.Mesh(new THREE.TorusGeometry(r * 0.69, Math.max(0.018, r * 0.055), 6, 16), chrome);
         innerRim.rotation.y = Math.PI / 2; innerRim.position.copy(tire.position); innerRim.position.x -= 0.095; detailed.add(innerRim);
       };
+      const addRod = (a:THREE.Vector3,b:THREE.Vector3,r:number,mat:THREE.Material) => {
+        const delta = new THREE.Vector3().subVectors(b,a);
+        const rod = new THREE.Mesh(this.sharedTrafficCylinder(r,delta.length(),7),mat);
+        rod.position.copy(a).add(b).multiplyScalar(0.5);
+        rod.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
+        detailed.add(rod); return rod;
+      };
       if (kind === 'bus') {
         // Dhaka city bus: tall passenger cabin, separated side windows and front windscreen.
         addBox(2.7,2.45,6.2,bodyMat,0,1.45,0);
@@ -847,7 +854,7 @@ export class DrivingScene {
         addBox(0.34,0.12,0.5,black,0,1.02,-0.63);
         addBox(0.12,0.12,0.72,chrome,0,0.64,0.05);
         addBox(0.62,0.28,0.24,bodyMat,0,0.86,-0.18);
-        addBox(0.12,0.12,0.12,lampMat,0,1.13,-0.55);
+        addBox(0.12,0.12,0.12,this.material(0xffedbd,0.28),0,1.13,-0.55);
         addBox(0.86,0.055,0.055,chrome,0,1.37,-0.2);
         addBox(0.1,0.13,0.62,chrome,0.28,0.54,0.46);
         addBox(0.62,0.08,0.13,bodyMat,0,1.1,0.94);
@@ -932,13 +939,6 @@ export class DrivingScene {
       const amberLamp = this.material(0xf0a43b, 0.38);
       const darkTrim = this.material(0x252c2a, 0.94);
       const plateMat = this.material(0xe9e4d4, 0.82);
-      const addRod = (a:THREE.Vector3,b:THREE.Vector3,r:number,mat:THREE.Material) => {
-        const delta = new THREE.Vector3().subVectors(b,a);
-        const rod = new THREE.Mesh(this.sharedTrafficCylinder(r,delta.length(),7),mat);
-        rod.position.copy(a).add(b).multiplyScalar(0.5);
-        rod.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
-        detailed.add(rod); return rod;
-      };
       // Common registration plates, door seams and turn indicators.
       addBox(0.48,0.15,0.035,plateMat,0,0.57,kind === 'bus' ? -3.17 : kind === 'bike' ? -0.61 : -1.76);
       if (kind !== 'bus' && kind !== 'bike') {
