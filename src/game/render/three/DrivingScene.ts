@@ -363,6 +363,30 @@ export class DrivingScene {
           }
         }
       }
+      // Everyday balcony life: colored laundry hangs behind selected railings.
+      // One InstancedMesh per facade keeps the extra detail inexpensive.
+      for (let floor = 1; floor < Math.max(2, Math.floor(height / 3)); floor++) {
+        if ((row + floor + i) % 3 !== 0) continue;
+        const y = 1.65 + floor * 2.65;
+        const laundry = new THREE.InstancedMesh(
+          this.sharedBoxGeometry(0.34, 0.48, 0.045),
+          this.material(0xf0e6d2, 0.88),
+          3,
+        );
+        const laundryMatrix = new THREE.Matrix4();
+        const laundryColors = [0xd95b4d, 0x4f7fa3, 0xe4c15a];
+        for (let piece = 0; piece < 3; piece++) {
+          laundryMatrix.makeTranslation(x + (piece - 1) * 0.42, y - 0.12, z + 5.88);
+          laundry.setMatrixAt(piece, laundryMatrix);
+          laundry.setColorAt(piece, new THREE.Color(laundryColors[(piece + row) % laundryColors.length]));
+        }
+        laundry.instanceMatrix.needsUpdate = true;
+        laundry.computeBoundingSphere();
+        laundry.castShadow = false;
+        laundry.receiveShadow = false;
+        this.scene.add(laundry); this.movingWorld.push(laundry);
+      }
+
       const shop = this.box(width * 0.82, 1.55, 0.16, 0x4b514b, x, 1.0, z + 5.36);
       this.scene.add(shop); this.movingWorld.push(shop);
       const sign = this.box(width * 0.78, 0.85, 0.28, [0x17664f,0x9b3d35,0x315c87,0x9b6a26][i % 4], x, 2.25, z + 5.48);
@@ -456,6 +480,24 @@ export class DrivingScene {
       }
       const frontParapet = this.box(width + 0.12, 0.62, 0.16, 0x9a8e7b, x, height + 0.42, z + 5.25);
       this.scene.add(frontParapet); this.movingWorld.push(frontParapet);
+
+      // Rooftop TV antennas and external service pipes add a varied skyline.
+      if (i % 3 === 0) {
+        const mast = this.box(0.055, 2.15, 0.055, 0x68736e, x - width * 0.28, height + 1.45, z - 2.2);
+        this.scene.add(mast); this.movingWorld.push(mast);
+        for (let arm = -1; arm <= 1; arm++) {
+          const aerial = this.box(0.82, 0.045, 0.045, 0x87918a, x - width * 0.28, height + 2.05 + arm * 0.28, z - 2.2);
+          this.scene.add(aerial); this.movingWorld.push(aerial);
+        }
+      }
+      if (i % 2 === 1) {
+        const servicePipe = this.box(0.075, height - 1.1, 0.075, 0x8c958d, x + width * 0.43, height / 2 + 0.45, z + 5.47);
+        this.scene.add(servicePipe); this.movingWorld.push(servicePipe);
+        for (let clamp = 0; clamp < Math.floor(height / 2.8); clamp++) {
+          const bracket = this.box(0.16, 0.055, 0.11, 0x6e7771, x + width * 0.43, 1.1 + clamp * 2.8, z + 5.5);
+          this.scene.add(bracket); this.movingWorld.push(bracket);
+        }
+      }
     }
 
     // Tag the complete building assemblies for distance culling. Their facade detail
