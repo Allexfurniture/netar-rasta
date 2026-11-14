@@ -819,6 +819,7 @@ export class DrivingScene {
         rod.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
         detailed.add(rod); return rod;
       };
+      const darkTrim = this.material(0x252c2a, 0.94);
       if (kind === 'bus') {
         // Dhaka city bus: tall passenger cabin, separated side windows and front windscreen.
         addBox(2.7,2.45,6.2,bodyMat,0,1.45,0);
@@ -937,7 +938,6 @@ export class DrivingScene {
       const redLamp = this.material(0xb93d35, 0.42);
       const addLamp = (px:number, py:number, pz:number, color:THREE.Material) => addBox(0.22,0.14,0.055,color,px,py,pz);
       const amberLamp = this.material(0xf0a43b, 0.38);
-      const darkTrim = this.material(0x252c2a, 0.94);
       const plateMat = this.material(0xe9e4d4, 0.82);
       // Common registration plates, door seams and turn indicators.
       addBox(0.48,0.15,0.035,plateMat,0,0.57,kind === 'bus' ? -3.17 : kind === 'bike' ? -0.61 : -1.76);
