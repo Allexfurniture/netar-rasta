@@ -516,15 +516,21 @@ export class DrivingScene {
     this.buildJunctionSet(-158, 'শাহবাগ', 0x5d9b79);
     this.buildJunctionSet(-246, 'ধানমন্ডি', 0xb96b54);
 
-    // Overhead utility cables and roadside Bengali wayfinding signs.
+    // Slightly sagging overhead utility cables: a more familiar Dhaka street silhouette.
     for (let i = 0; i < 8; i++) {
       const z = -22 - i * 29;
+      const y = 7.4 + (i % 2) * 0.35;
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-11, y, z),
+        new THREE.Vector3(-5.5, y - 0.38, z),
+        new THREE.Vector3(0, y - 0.52, z),
+        new THREE.Vector3(5.5, y - 0.38, z),
+        new THREE.Vector3(11, y, z),
+      ]);
       const cable = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.018, 0.018, 22, 5),
+        new THREE.TubeGeometry(curve, 16, 0.018, 5, false),
         this.material(0x343a37, 0.9)
       );
-      cable.rotation.z = Math.PI / 2;
-      cable.position.set(0, 7.4 + (i % 2) * 0.35, z);
       this.scene.add(cable); this.movingWorld.push(cable);
     }
 
@@ -548,6 +554,7 @@ export class DrivingScene {
     this.buildStreetTraffic();
     this.buildChargingStations();
     this.buildDhakaStreetDetails();
+    this.buildDhakaMarketProps();
     this.buildSidewalkCrowd();
     this.buildPursuitCrowd();
     this.buildRickshaw();
@@ -634,6 +641,79 @@ export class DrivingScene {
     addMoving(this.box(0.12, 0.8, 0.12, 0x48534e, -10.5, 0.48, -270));
     addMoving(this.box(0.12, 0.8, 0.12, 0x48534e, -7.7, 0.48, -270));
     this.streetSign('রিকশা স্ট্যান্ড', -9.1, 2.0, -270, '#9b6a26');
+  }
+
+  private buildDhakaMarketProps() {
+    // Compact, reusable roadside market scenes: tea counter, stools, crates,
+    // produce baskets and hanging bulbs. Each stall is one moving/cullable group.
+    const wood = this.material(0x80583b, 0.9);
+    const darkWood = this.material(0x503b2c, 0.94);
+    const steel = this.material(0x9aa39b, 0.48);
+    const tea = this.material(0x9a5b2e, 0.35);
+    const produce = [0xe2b84c, 0xd45a43, 0x659653, 0xd98c3f].map(color => this.material(color, 0.82));
+    const bulbs = this.material(0xffd98b, 0.3);
+    for (let i = 0; i < 6; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const x = side * 9.45;
+      const z = -42 - i * 39;
+      const stall = new THREE.Group();
+      const add = (mesh: THREE.Object3D) => { stall.add(mesh); };
+      const counter = new THREE.Mesh(this.sharedBoxGeometry(2.15, 0.92, 0.72), wood);
+      counter.position.set(0, 0.68, 0); add(counter);
+      const counterTop = new THREE.Mesh(this.sharedBoxGeometry(2.28, 0.1, 0.82), darkWood);
+      counterTop.position.set(0, 1.18, 0); add(counterTop);
+      // Open shelves and a row of small tea glasses.
+      for (let shelf = 0; shelf < 2; shelf++) {
+        const board = new THREE.Mesh(this.sharedBoxGeometry(1.55, 0.07, 0.34), steel);
+        board.position.set(0, 0.55 + shelf * 0.34, -0.39); add(board);
+      }
+      for (let cup = 0; cup < 5; cup++) {
+        const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.06, 0.16, 8), tea);
+        glass.position.set(-0.62 + cup * 0.31, 1.32, -0.12); add(glass);
+      }
+      const kettle = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), steel);
+      kettle.scale.set(1.15, 0.78, 0.85); kettle.position.set(0.72, 1.39, 0.02); add(kettle);
+      const kettleSpout = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.075, 0.28, 8), steel);
+      kettleSpout.rotation.z = -Math.PI / 3; kettleSpout.position.set(0.93, 1.48, 0.02); add(kettleSpout);
+      // Stacked produce crates and colorful goods make the frontage read as a market.
+      for (let crate = 0; crate < 3; crate++) {
+        const box = new THREE.Mesh(this.sharedBoxGeometry(0.48, 0.38, 0.42), crate === 1 ? darkWood : wood);
+        box.position.set(-1.18 + (crate % 2) * 0.25, 0.25 + Math.floor(crate / 2) * 0.38, 0.58); add(box);
+      }
+      for (let item = 0; item < 9; item++) {
+        const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.105, 8, 7), produce[item % produce.length]);
+        fruit.position.set(-1.18 + (item % 3) * 0.15, 0.55 + Math.floor(item / 3) * 0.13, 0.58);
+        add(fruit);
+      }
+      for (const stoolX of [-0.72, 0.72]) {
+        const stool = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.2, 0.12, 10), darkWood);
+        stool.position.set(stoolX, 0.36, 1.05); add(stool);
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.34, 6), steel);
+        leg.position.set(stoolX, 0.17, 1.05); add(leg);
+      }
+      // Fabric-like striped canopy, support posts and a warm hanging bulb.
+      for (const postX of [-1.18, 1.18]) {
+        const post = new THREE.Mesh(this.sharedBoxGeometry(0.07, 2.55, 0.07), steel);
+        post.position.set(postX, 1.42, -0.52); add(post);
+      }
+      const canopy = new THREE.Mesh(this.sharedBoxGeometry(2.75, 0.12, 1.45), this.material(i % 2 ? 0xb84b3e : 0x267a68, 0.72));
+      canopy.position.set(0, 2.72, -0.25); add(canopy);
+      for (let stripe = 0; stripe < 7; stripe++) {
+        const trim = new THREE.Mesh(this.sharedBoxGeometry(0.055, 0.025, 1.36), this.material(stripe % 2 ? 0xf0dfbd : 0xe6b94f, 0.78));
+        trim.position.set(-1.2 + stripe * 0.4, 2.79, -0.25); add(trim);
+      }
+      const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 5), darkWood);
+      cord.position.set(0, 2.43, 0.18); add(cord);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), bulbs);
+      bulb.position.set(0, 2.15, 0.18); add(bulb);
+      stall.position.set(x, 0, z);
+      stall.traverse(object => {
+        if (object instanceof THREE.Mesh) { object.castShadow = false; object.receiveShadow = false; }
+      });
+      stall.userData.environmentLod = true;
+      stall.userData.lodVisible = true;
+      this.scene.add(stall); this.movingWorld.push(stall);
+    }
   }
 
   private buildStreetTraffic() {
