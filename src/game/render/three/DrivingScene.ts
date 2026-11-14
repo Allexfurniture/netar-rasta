@@ -806,19 +806,55 @@ export class DrivingScene {
         const hubRadius = r * 0.35;
         const hub = new THREE.Mesh(this.sharedTrafficCylinder(hubRadius,0.2,10),chrome);
         hub.rotation.z = Math.PI/2; hub.position.copy(tire.position); detailed.add(hub);
+        // Raised sidewall and a visible alloy/steel rim make wheels read at close range.
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(r * 0.69, Math.max(0.018, r * 0.055), 6, 16), chrome);
+        rim.rotation.y = Math.PI / 2; rim.position.copy(tire.position); rim.position.x += 0.095; detailed.add(rim);
+        const innerRim = new THREE.Mesh(new THREE.TorusGeometry(r * 0.69, Math.max(0.018, r * 0.055), 6, 16), chrome);
+        innerRim.rotation.y = Math.PI / 2; innerRim.position.copy(tire.position); innerRim.position.x -= 0.095; detailed.add(innerRim);
       };
       if (kind === 'bus') {
+        // Dhaka city bus: tall passenger cabin, separated side windows and front windscreen.
         addBox(2.7,2.45,6.2,bodyMat,0,1.45,0);
-        addBox(2.58,0.92,5.8,glassMat,0,2.05,-0.05);
+        addBox(2.58,0.82,0.12,glassMat,0,2.25,-3.12);
+        addBox(2.58,0.82,0.12,glassMat,0,2.25,3.12);
         addBox(2.78,0.18,6.25,this.material(0xf1d79a),0,0.48,0);
         addBox(2.72,0.32,0.12,this.material(0x273d39),0,2.72,-3.12);
-        for (let col=0; col<6; col++) addBox(0.36,0.58,0.05,glassMat,(col-2.5)*0.43,1.9,-3.13);
+        for (let col=0; col<6; col++) {
+          const px = (col-2.5)*0.43;
+          addBox(0.36,0.58,0.05,glassMat,px,1.9,-3.13);
+          addBox(0.36,0.58,0.05,glassMat,px,1.9,3.13);
+        }
+        for (const side of [-1,1]) {
+          for (let win=0; win<5; win++) {
+            const wz = -2.35 + win * 1.15;
+            addBox(0.07,0.78,0.82,glassMat,side*1.36,2.05,wz);
+            addBox(0.055,0.92,0.06,chrome,side*1.405,2.05,wz);
+          }
+          addBox(0.08,0.78,0.06,chrome,side*1.405,2.05,-2.92);
+          addBox(0.08,0.78,0.06,chrome,side*1.405,2.05,2.92);
+          // Painted lower belt stripe and wheel-arch side skirts.
+          addBox(0.045,0.2,5.9,this.material(0xe7c45a),side*1.38,0.82,0);
+          addBox(0.08,0.22,5.5,darkTrim,side*1.39,0.52,0);
+        }
+        addBox(0.9,0.28,0.1,this.material(0x263b39),0,2.78,-3.18);
         for (const wx of [-1.18,1.18]) for (const wz of [-2.0,2.0]) wheel(wx,wz,0.42);
       } else if (kind === 'bike') {
         wheel(0,-0.78,0.31); wheel(0,0.82,0.31);
-        addBox(0.32,0.5,1.05,bodyMat,0,0.82,0);
-        addBox(0.54,0.12,0.42,black,0,1.13,0.18);
-        addBox(0.52,0.09,0.08,chrome,0,1.25,-0.48);
+        // Motorcycle frame, sculpted fuel tank, two-piece saddle and rear carrier.
+        addBox(0.16,0.62,0.16,chrome,0,0.77,0.02);
+        addBox(0.52,0.42,0.64,bodyMat,0,1.03,-0.18);
+        addBox(0.38,0.18,0.82,black,0,1.13,0.43);
+        addBox(0.34,0.12,0.5,black,0,1.02,-0.63);
+        addBox(0.12,0.12,0.72,chrome,0,0.64,0.05);
+        addBox(0.62,0.28,0.24,bodyMat,0,0.86,-0.18);
+        addBox(0.12,0.12,0.12,lampMat,0,1.13,-0.55);
+        addBox(0.86,0.055,0.055,chrome,0,1.37,-0.2);
+        addBox(0.1,0.13,0.62,chrome,0.28,0.54,0.46);
+        addBox(0.62,0.08,0.13,bodyMat,0,1.1,0.94);
+        for (const side of [-1,1]) {
+          addRod(new THREE.Vector3(side*0.12,0.62,-0.78),new THREE.Vector3(side*0.2,1.16,-0.5),0.035,chrome);
+          addBox(0.12,0.08,0.28,darkTrim,side*0.32,0.54,0.15);
+        }
       } else if (kind === 'auto') {
         // Battery-powered three-wheeler / easybike with roof and rear passenger bay.
         addBox(1.58,0.68,2.55,bodyMat,0,0.82,0.1);
@@ -833,23 +869,58 @@ export class DrivingScene {
       } else if (kind === 'rickshaw') {
         // Pedal rickshaw used as ambient traffic, visually distinct from the player's easybike.
         wheel(0,-1.12,0.34); wheel(-0.78,0.78,0.4); wheel(0.78,0.78,0.4);
+        // Traditional pedal rickshaw: front bicycle fork, rear passenger bench and curved canopy ribs.
+        addBox(0.12,0.14,1.22,chrome,0,0.62,-0.2);
         addBox(1.58,0.52,1.5,this.material(0xc84e42),0,0.96,0.78);
         addBox(1.55,0.12,1.62,this.material(0x267e59),0,1.72,0.72);
         addBox(1.1,0.08,0.78,this.material(0xe8bd58),0,1.82,0.72);
         addBox(0.5,0.72,0.44,this.material(0x286b55),0,1.2,-0.42);
+        for (const side of [-1,1]) {
+          addRod(new THREE.Vector3(side*0.72,1.15,0.0),new THREE.Vector3(side*0.62,2.18,0.35),0.045,chrome);
+          addRod(new THREE.Vector3(side*0.62,2.18,0.35),new THREE.Vector3(side*0.62,2.18,1.22),0.045,chrome);
+          addRod(new THREE.Vector3(side*0.62,2.18,1.22),new THREE.Vector3(side*0.72,1.15,1.45),0.045,chrome);
+          addBox(0.045,0.025,1.5,this.material([0xe5c44d,0xece3c8][side===-1?0:1]),side*0.5,2.0,0.72);
+        }
+        addBox(0.72,0.12,0.55,this.material(0x4a3328),0,1.48,1.2);
+        addBox(0.68,0.08,0.12,this.material(0x302820),0,1.78,1.5);
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.16,10,8),this.material(0xb97850));
         head.position.set(0,1.7,-0.46); detailed.add(head);
+        addBox(0.08,0.08,0.52,chrome,0,0.55,0.0);
+        addBox(0.58,0.06,0.08,chrome,0,0.55,-0.18);
       } else {
         const length = kind === 'cng' ? 2.7 : 3.4;
         if (kind === 'cng') {
-          addBox(1.5,0.72,length,bodyMat,0,0.78,0.1);
-          addBox(1.42,0.74,length*0.54,glassMat,0,1.48,-0.12);
-          addBox(1.58,0.12,0.16,this.material(0xe7c75c),0,0.48,-length*0.48);
+          // Three-wheeled CNG with curved-looking nose, open passenger cabin and tubular canopy.
+          addBox(1.5,0.62,1.18,bodyMat,0,0.72,-0.72);
+          addBox(1.42,0.72,1.38,bodyMat,0,0.78,0.48);
+          addBox(1.35,0.66,0.09,glassMat,0,1.47,-0.48);
+          addBox(1.32,0.62,0.08,glassMat,0,1.45,1.1);
+          addBox(1.55,0.13,1.72,this.material(0x18784f),0,1.95,0.32);
+          addBox(1.45,0.1,1.42,this.material(0x273a32),0,1.34,0.52);
+          addBox(1.55,0.12,0.16,this.material(0xe7c75c),0,0.48,-1.12);
+          for (const side of [-1,1]) {
+            addRod(new THREE.Vector3(side*0.72,0.78,-0.95),new THREE.Vector3(side*0.72,1.92,-0.62),0.045,chrome);
+            addRod(new THREE.Vector3(side*0.72,1.92,-0.62),new THREE.Vector3(side*0.72,1.92,1.12),0.045,chrome);
+            addRod(new THREE.Vector3(side*0.72,1.92,1.12),new THREE.Vector3(side*0.72,0.78,1.12),0.045,chrome);
+            addBox(0.055,0.58,0.88,glassMat,side*0.74,1.45,0.28);
+            addBox(0.08,0.1,0.46,this.material(0xf0c94f),side*0.77,0.9,0.42);
+          }
           wheel(-0.72,-0.78,0.31); wheel(0.72,-0.78,0.31); wheel(0,1.12,0.34);
         } else {
-          addBox(1.9,0.82,length,bodyMat,0,0.78,0.1);
-          addBox(1.78,0.82,length*0.56,glassMat,0,1.48,-0.12);
-          addBox(1.85,0.16,0.18,this.material(0xe9d7a9),0,0.38,-length*0.42);
+          // Private sedan/SUV-style car with hood, passenger greenhouse and separated glazing.
+          addBox(1.9,0.58,3.35,bodyMat,0,0.7,0.08);
+          addBox(1.68,0.58,1.92,glassMat,0,1.38,-0.12);
+          addBox(1.58,0.12,1.62,bodyMat,0,1.73,-0.12);
+          addBox(1.84,0.13,0.82,bodyMat,0,0.99,-1.12);
+          addBox(1.84,0.12,0.72,bodyMat,0,0.98,1.2);
+          addBox(1.85,0.16,0.18,this.material(0xe9d7a9),0,0.38,-1.58);
+          for (const side of [-1,1]) {
+            addBox(0.055,0.52,1.38,glassMat,side*0.91,1.43,-0.12);
+            addBox(0.07,0.54,0.06,chrome,side*0.94,1.43,-0.83);
+            addBox(0.07,0.54,0.06,chrome,side*0.94,1.43,0.58);
+            addBox(0.055,0.045,0.2,chrome,side*0.97,1.04,0.0);
+            addBox(0.055,0.045,0.2,chrome,side*0.97,1.04,0.78);
+          }
           for (const wx of [-0.82,0.82]) for (const wz of [-length*0.32,length*0.32]) wheel(wx,wz,0.34);
         }
       }
@@ -858,6 +929,24 @@ export class DrivingScene {
       const lampMat = new THREE.MeshStandardMaterial({ color: 0xffedbd, emissive: 0x8a6a2d, emissiveIntensity: 0.22, roughness: 0.28 });
       const redLamp = this.material(0xb93d35, 0.42);
       const addLamp = (px:number, py:number, pz:number, color:THREE.Material) => addBox(0.22,0.14,0.055,color,px,py,pz);
+      const amberLamp = this.material(0xf0a43b, 0.38);
+      const darkTrim = this.material(0x252c2a, 0.94);
+      const plateMat = this.material(0xe9e4d4, 0.82);
+      const addRod = (a:THREE.Vector3,b:THREE.Vector3,r:number,mat:THREE.Material) => {
+        const delta = new THREE.Vector3().subVectors(b,a);
+        const rod = new THREE.Mesh(this.sharedTrafficCylinder(r,delta.length(),7),mat);
+        rod.position.copy(a).add(b).multiplyScalar(0.5);
+        rod.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
+        detailed.add(rod); return rod;
+      };
+      // Common registration plates, door seams and turn indicators.
+      addBox(0.48,0.15,0.035,plateMat,0,0.57,kind === 'bus' ? -3.17 : kind === 'bike' ? -0.61 : -1.76);
+      if (kind !== 'bus' && kind !== 'bike') {
+        for (const side of [-1,1]) {
+          addBox(0.045,0.48,0.035,chrome,side * (kind === 'cng' ? 0.76 : 0.96),1.03,0.1);
+          addLamp(side * (kind === 'cng' ? 0.68 : 0.82),0.9,kind === 'cng' ? -1.28 : -1.68,amberLamp);
+        }
+      }
       if (kind === 'bus') {
         addBox(2.76,0.14,0.16,chrome,0,0.56,-3.16);
         for (const wx of [-0.96,0.96]) {
@@ -964,7 +1053,7 @@ export class DrivingScene {
       {kind:'auto',distance:264,color:0xb74c42,speed:8.7,route:-1,lane:-1.55},
       {kind:'cng',distance:294,color:0x277e68,speed:9.8,route:1,lane:1.55},
       {kind:'rickshaw',distance:324,color:0x2f9366,speed:6.9,route:0,lane:-1.55},
-      {kind:'bike',distance:354,color:0xc84b3e,speed:11.8,route:-1,lane:1.55},
+      {kind:'bike',distance:354,color:0x276ca0,speed:11.8,route:-1,lane:1.55},
     ];
     const dimensions: Record<TrafficKind,{halfWidth:number;halfLength:number}> = {
       bus:{halfWidth:1.42,halfLength:3.15}, car:{halfWidth:1.02,halfLength:1.75},
