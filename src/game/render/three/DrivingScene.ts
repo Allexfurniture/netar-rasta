@@ -76,6 +76,7 @@ export class DrivingScene {
   private disposed = false;
   private readonly onStatus: (status: SceneStatus) => void;
   private readonly boxGeometryCache = new Map<string, THREE.BoxGeometry>();
+  private readonly trafficCylinderGeometryCache = new Map<string, THREE.CylinderGeometry>();
 
   constructor(private readonly host: HTMLElement, onStatus: (status: SceneStatus) => void) {
     this.onStatus = onStatus;
@@ -111,16 +112,28 @@ export class DrivingScene {
     return material;
   }
 
-  private box(width: number, height: number, depth: number, color: THREE.ColorRepresentation, x: number, y: number, z: number) {
-    // Repeated facade, trim and street-detail boxes share GPU geometry by dimensions.
-    // Round the key to avoid duplicate buffers from insignificant float noise.
+  private sharedBoxGeometry(width: number, height: number, depth: number) {
     const key = `${width.toFixed(3)}:${height.toFixed(3)}:${depth.toFixed(3)}`;
     let geometry = this.boxGeometryCache.get(key);
     if (!geometry) {
       geometry = new THREE.BoxGeometry(width, height, depth);
       this.boxGeometryCache.set(key, geometry);
     }
-    const mesh = new THREE.Mesh(geometry, this.material(color));
+    return geometry;
+  }
+
+  private sharedTrafficCylinder(radius: number, height: number, segments: number) {
+    const key = `${radius.toFixed(3)}:${height.toFixed(3)}:${segments}`;
+    let geometry = this.trafficCylinderGeometryCache.get(key);
+    if (!geometry) {
+      geometry = new THREE.CylinderGeometry(radius, radius, height, segments);
+      this.trafficCylinderGeometryCache.set(key, geometry);
+    }
+    return geometry;
+  }
+
+  private box(width: number, height: number, depth: number, color: THREE.ColorRepresentation, x: number, y: number, z: number) {
+    const mesh = new THREE.Mesh(this.sharedBoxGeometry(width, height, depth), this.material(color));
     mesh.position.set(x, y, z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -581,17 +594,18 @@ export class DrivingScene {
       const group = new THREE.Group();
       const detailed = new THREE.Group();
       const bodyMat = this.material(color, 0.58);
-      const glassMat = new THREE.MeshStandardMaterial({ color: 0x8db9c1, roughness: 0.22, metalness: 0.1 });
+      const glassMat = this.material(0x8db9c1, 0.22);
       const black = this.material(0x202522, 0.96);
       const chrome = this.material(0xb9c4bb, 0.42);
       const addBox = (w:number,h:number,d:number,c:THREE.Material,px:number,py:number,pz:number) => {
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),c);
-        mesh.position.set(px,py,pz); mesh.castShadow = true; detailed.add(mesh); return mesh;
+        const mesh = new THREE.Mesh(this.sharedBoxGeometry(w,h,d),c);
+        mesh.position.set(px,py,pz); mesh.castShadow = false; mesh.receiveShadow = false; detailed.add(mesh); return mesh;
       };
       const wheel = (wx:number,wz:number,r=0.32) => {
-        const tire = new THREE.Mesh(new THREE.CylinderGeometry(r,r,0.18,14),black);
+        const tire = new THREE.Mesh(this.sharedTrafficCylinder(r,0.18,14),black);
         tire.rotation.z = Math.PI/2; tire.position.set(wx,r,wz); detailed.add(tire);
-        const hub = new THREE.Mesh(new THREE.CylinderGeometry(r*0.35,r*0.35,0.2,10),chrome);
+        const hubRadius = r * 0.35;
+        const hub = new THREE.Mesh(this.sharedTrafficCylinder(hubRadius,0.2,10),chrome);
         hub.rotation.z = Math.PI/2; hub.position.copy(tire.position); detailed.add(hub);
       };
       if (kind === 'bus') {
@@ -704,21 +718,27 @@ export class DrivingScene {
       group.add(detailed);
       const proxy = new THREE.Group();
       const proxyBody = new THREE.Mesh(
-        new THREE.BoxGeometry(kind === 'bus' ? 2.5 : 1.65, kind === 'bus' ? 1.9 : 1.05, kind === 'bus' ? 5.6 : kind === 'bike' ? 1.7 : 3.0),
+        this.sharedBoxGeometry(kind === 'bus' ? 2.5 : 1.65, kind === 'bus' ? 1.9 : 1.05, kind === 'bus' ? 5.6 : kind === 'bike' ? 1.7 : 3.0),
         bodyMat
       );
+      proxyBody.castShadow = false;
+      proxyBody.receiveShadow = false;
       proxyBody.position.y = kind === 'bus' ? 1.25 : 0.85;
       proxy.add(proxyBody);
       const proxyGlass = new THREE.Mesh(
-        new THREE.BoxGeometry(kind === 'bus' ? 2.35 : 1.42, kind === 'bus' ? 0.7 : 0.48, 0.08),
+        this.sharedBoxGeometry(kind === 'bus' ? 2.35 : 1.42, kind === 'bus' ? 0.7 : 0.48, 0.08),
         glassMat
       );
+      proxyGlass.castShadow = false;
+      proxyGlass.receiveShadow = false;
       proxyGlass.position.set(0, kind === 'bus' ? 2.0 : 1.45, -0.8);
       proxy.add(proxyGlass);
       const proxyWheelRadius = kind === 'bus' ? 0.38 : 0.29;
       const proxyWheelCount = kind === 'bike' ? 2 : kind === 'auto' || kind === 'cng' || kind === 'rickshaw' ? 3 : 4;
       for (let wi = 0; wi < proxyWheelCount; wi++) {
-        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(proxyWheelRadius, proxyWheelRadius, 0.12, 8), black);
+        const wheel = new THREE.Mesh(this.sharedTrafficCylinder(proxyWheelRadius, 0.12, 8), black);
+        wheel.castShadow = false;
+        wheel.receiveShadow = false;
         wheel.rotation.z = Math.PI / 2;
         wheel.position.set(wi % 2 === 0 ? -0.72 : 0.72, proxyWheelRadius, wi < 2 ? -1.0 : 1.0);
         proxy.add(wheel);
@@ -727,6 +747,7 @@ export class DrivingScene {
       group.add(proxy);
       group.userData.highDetail = detailed;
       group.userData.lowDetail = proxy;
+      group.userData.lodTier = -1;
       this.scene.add(group);
       return group;
     };
@@ -835,6 +856,17 @@ export class DrivingScene {
     agent.overlapping = true;
   }
 
+  private updateTrafficLod(agent: TrafficAgent, depth: number) {
+    const tier = depth < 72 ? 2 : depth < 155 ? 1 : 0;
+    if (agent.group.userData.lodTier === tier) return;
+    agent.group.userData.lodTier = tier;
+    const highDetail = agent.group.userData.highDetail as THREE.Group | undefined;
+    const lowDetail = agent.group.userData.lowDetail as THREE.Group | undefined;
+    if (highDetail) highDetail.visible = tier === 2;
+    if (lowDetail) lowDetail.visible = tier === 1;
+    agent.group.visible = tier !== 0;
+  }
+
   private updateTraffic(dt: number) {
     const targetSpeeds = this.trafficAgents.map(agent => {
       if (agent.knockedBack) return 0;
@@ -863,6 +895,7 @@ export class DrivingScene {
         if (agent.group.position.y < 0) { agent.group.position.y = 0; agent.knockbackVelocity.y = 0; }
         agent.group.rotation.z += (agent.knockbackVelocity.x >= 0 ? 1 : -1) * dt * 3.8;
         agent.group.rotation.x += dt * 2.2;
+        this.updateTrafficLod(agent, Math.abs(agent.group.position.z));
         if (agent.knockbackTime <= 0) {
           const spawnDistance = Math.min(this.prototypeRouteLength - 30, this.distance + 150 + index * 11);
           agent.state = advanceRoad(createRoadState(), spawnDistance, agent.routeBias);
@@ -883,18 +916,7 @@ export class DrivingScene {
       }
       this.positionTrafficAgent(agent);
       const depth = Math.abs(agent.state.distance - this.distance);
-      const highDetail = agent.group.userData.highDetail as THREE.Group | undefined;
-      const lowDetail = agent.group.userData.lowDetail as THREE.Group | undefined;
-      if (highDetail && lowDetail) {
-        const useHighDetail = depth < 82;
-        highDetail.visible = useHighDetail;
-        lowDetail.visible = !useHighDetail;
-        if (depth > 82) {
-          highDetail.traverse(object => {
-            if (object instanceof THREE.Mesh) object.castShadow = false;
-          });
-        }
-      }
+      this.updateTrafficLod(agent, depth);
       const dx = agent.group.position.x - this.player.position.x;
       const dz = agent.group.position.z;
       const heading = this.player.rotation.y;
@@ -1382,6 +1404,7 @@ export class DrivingScene {
     geometries.forEach(geometry => geometry.dispose());
     materials.forEach(material => material.dispose());
     this.boxGeometryCache.clear();
+    this.trafficCylinderGeometryCache.clear();
     this.renderer.dispose();
     this.materialCache.clear();
     this.renderer.domElement.remove();
