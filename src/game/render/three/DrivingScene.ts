@@ -1054,6 +1054,14 @@ export class DrivingScene {
       {kind:'cng',distance:294,color:0x277e68,speed:9.8,route:1,lane:1.55},
       {kind:'rickshaw',distance:324,color:0x2f9366,speed:6.9,route:0,lane:-1.55},
       {kind:'bike',distance:354,color:0x276ca0,speed:11.8,route:-1,lane:1.55},
+      // A third vehicle of each class enters later in the route to keep traffic
+      // density and the visual mix consistent as the player progresses.
+      {kind:'bus',distance:386,color:0x3c6592,speed:8.5,route:1,lane:-1.65},
+      {kind:'car',distance:418,color:0x8d5c9b,speed:10.1,route:-1,lane:1.65},
+      {kind:'auto',distance:450,color:0xd07832,speed:8.1,route:0,lane:-1.55},
+      {kind:'cng',distance:482,color:0x477d9d,speed:9.5,route:-1,lane:1.55},
+      {kind:'rickshaw',distance:514,color:0xb94f45,speed:7.1,route:1,lane:-1.55},
+      {kind:'bike',distance:546,color:0x8a6b39,speed:12.0,route:0,lane:1.55},
     ];
     const dimensions: Record<TrafficKind,{halfWidth:number;halfLength:number}> = {
       bus:{halfWidth:1.42,halfLength:3.15}, car:{halfWidth:1.02,halfLength:1.75},
