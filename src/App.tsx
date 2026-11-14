@@ -1,186 +1,293 @@
-import { useEffect, useRef, useState } from 'react';
-import Phaser from 'phaser';
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
+import type { CameraMode, SceneStatus } from './game/render/three/DrivingScene';
+type DrivingSceneInstance = import('./game/render/three/DrivingScene').DrivingScene;
+import { ROAD_EDGES, ROAD_NODES } from './game/world/RoadGraph';
 
-type Snapshot = { distance: number; score: number; battery: number; damage: number; speed: number; area: string; ended: boolean };
+type ViewState = 'ready' | 'loading' | 'running' | 'paused' | 'victory' | 'gameover' | 'error';
 
-class RoadScene extends Phaser.Scene {
-  private player!: Phaser.GameObjects.Container;
-  private traffic: Phaser.GameObjects.Container[] = [];
-  private road!: Phaser.GameObjects.Graphics;
-  private keys!: Record<string, Phaser.Input.Keyboard.Key>;
-  private touch = { left: false, right: false, forward: false, reverse: false };
-  private distance = 0;
-  private score = 0;
-  private battery = 100;
-  private damage = 0;
-  private speed = 150;
-  private elapsed = 0;
-  private ended = false;
-  private area = 'ফার্মগেট';
-  private hud?: (s: Snapshot) => void;
-  private lastHud = 0;
-  private charging = false;
-
-  constructor(onHud: (s: Snapshot) => void) { super('road'); this.hud = onHud; }
-
-  create() {
-    const { width, height } = this.scale;
-    this.road = this.add.graphics();
-    this.drawRoad(width, height);
-    this.player = this.makeRickshaw(width / 2, height * 0.72, 0x16a36b);
-    this.physics.world.setBounds(0, 0, width, height);
-    this.input.keyboard?.on('keydown-SPACE', () => this.horn());
-    this.keys = this.input.keyboard!.addKeys('LEFT,RIGHT,UP,DOWN,A,D,W,S,SPACE') as unknown as Record<string, Phaser.Input.Keyboard.Key>;
-    this.spawnTraffic();
-    this.events.on('shutdown', () => { this.traffic.forEach(v => v.destroy()); });
-  }
-
-  private drawRoad(w: number, h: number) {
-    this.road.clear();
-    this.road.fillStyle(0x31584a); this.road.fillRect(0, 0, w, h);
-    this.road.fillStyle(0x777d78); this.road.fillRect(w * .13, 0, w * .74, h);
-    this.road.fillStyle(0x343a3b); this.road.fillRect(w * .17, 0, w * .66, h);
-    this.road.fillStyle(0xe8dfb8); this.road.fillRect(w * .145, 0, 4, h); this.road.fillRect(w * .855, 0, 4, h);
-    this.road.lineStyle(3, 0xf5e8a8, .8);
-    for (let y = -40; y < h + 40; y += 76) {
-      this.road.beginPath(); this.road.moveTo(w / 2, y); this.road.lineTo(w / 2, y + 38); this.road.strokePath();
-    }
-    this.road.fillStyle(0x2d6c51); this.road.fillRoundedRect(w * .02, h * .08, w * .24, 48, 8);
-    this.road.fillStyle(0xffffff); this.road.fillRoundedRect(w * .04, h * .095, w * .20, 22, 4);
-    this.road.fillStyle(0x18382b); this.road.fillRoundedRect(w * .04, h * .095, w * .20, 22, 4);
-    this.add.text(w * .14, h * .105, this.area, { fontFamily: 'sans-serif', fontSize: '12px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(.5);
-  }
-
-  private makeRickshaw(x: number, y: number, color: number) {
-    const c = this.add.container(x, y);
-    const g = this.add.graphics();
-    g.fillStyle(0x202b28); g.fillRoundedRect(-18, -27, 36, 54, 7);
-    g.fillStyle(color); g.fillRoundedRect(-15, -23, 30, 42, 6);
-    g.fillStyle(0xf0bd8d); g.fillCircle(0, -14, 7);
-    g.fillStyle(0xf7d75a); g.fillRoundedRect(-13, 7, 26, 8, 3);
-    g.fillStyle(0x111817); g.fillCircle(-17, -18, 4); g.fillCircle(17, -18, 4);
-    g.lineStyle(3, 0xd5e6db); g.lineBetween(-12, 23, 12, 23);
-    c.add(g);
-    return c;
-  }
-
-  private spawnTraffic() {
-    const { width } = this.scale;
-    for (let i = 0; i < 5; i++) {
-      const colors = [0xd94d42, 0xe4b83f, 0x3e85c8, 0x777e83];
-      const v = this.add.container(width * (.34 + (i % 3) * .16), -100 - i * 190);
-      const g = this.add.graphics();
-      g.fillStyle(0x202729); g.fillRoundedRect(-17, -28, 34, 56, 6);
-      g.fillStyle(colors[i % colors.length]); g.fillRoundedRect(-14, -25, 28, 48, 5);
-      g.fillStyle(0xcce5e8); g.fillRoundedRect(-10, -18, 20, 10, 2);
-      g.fillStyle(0x222); g.fillRect(-16, -17, 4, 9); g.fillRect(12, -17, 4, 9);
-      v.add(g); v.setData('speed', 90 + (i % 3) * 35); this.traffic.push(v);
-    }
-  }
-
-  private horn() {
-    if (this.ended) return;
-    this.cameras.main.flash(60, 255, 244, 180, false);
-  }
-
-  setTouch(key: keyof typeof this.touch, down: boolean) { this.touch[key] = down; }
-
-  update(_time: number, delta: number) {
-    if (this.ended) return;
-    const dt = Math.min(delta, 40) / 1000;
-    this.elapsed += dt;
-    this.speed = Math.min(310, 150 + this.elapsed * 1.7);
-    const left = this.touch.left || this.keys.LEFT.isDown || this.keys.A.isDown;
-    const right = this.touch.right || this.keys.RIGHT.isDown || this.keys.D.isDown;
-    const forward = this.touch.forward || this.keys.UP.isDown || this.keys.W.isDown;
-    const reverse = this.touch.reverse || this.keys.DOWN.isDown || this.keys.S.isDown;
-    const steering = (right ? 1 : 0) - (left ? 1 : 0);
-    this.player.x = Phaser.Math.Clamp(this.player.x + steering * 210 * dt, this.scale.width * .22, this.scale.width * .78);
-    this.player.rotation = Phaser.Math.Linear(this.player.rotation, steering * .12, .12);
-    const drive = reverse ? -0.48 : forward ? 1 : .72;
-    const movement = this.speed * drive;
-    this.distance += Math.max(0, movement) * dt / 10;
-    this.score += Math.max(0, movement) * dt * .08;
-    this.battery = Math.max(0, this.battery - (0.12 + Math.max(0, movement) / 900) * dt);
-    this.charging = this.player.x < this.scale.width * .28 && this.player.y > this.scale.height * .55;
-    if (this.charging) this.battery = Math.min(100, this.battery + 20 * dt);
-    this.traffic.forEach(v => {
-      v.y += (Number(v.getData('speed')) + movement * .28) * dt;
-      if (v.y > this.scale.height + 80) { v.y = -100; v.x = this.scale.width * (.30 + Math.random() * .4); }
-      const near = Phaser.Math.Distance.Between(v.x, v.y, this.player.x, this.player.y) < 38;
-      if (near && !v.getData('hit')) {
-        v.setData('hit', true); this.damage = Math.min(100, this.damage + 18);
-        this.cameras.main.shake(150, .006);
-        this.player.x = Phaser.Math.Clamp(this.player.x + (this.player.x < v.x ? -24 : 24), this.scale.width * .22, this.scale.width * .78);
-      }
-      if (v.y > this.scale.height + 80) v.setData('hit', false);
-    });
-    if (this.elapsed > 28) this.area = 'শাহবাগ'; if (this.elapsed > 55) this.area = 'ধানমন্ডি';
-    if (this.battery <= 0 || this.damage >= 100) this.finish();
-    if (_time - this.lastHud > 100) {
-      this.hud?.({ distance: Math.floor(this.distance), score: Math.floor(this.score), battery: Math.round(this.battery), damage: Math.round(this.damage), speed: Math.round(this.speed), area: this.area, ended: this.ended });
-      this.lastHud = _time;
-    }
-  }
-
-  private finish() {
-    this.ended = true;
-    this.hud?.({ distance: Math.floor(this.distance), score: Math.floor(this.score), battery: Math.round(this.battery), damage: Math.round(this.damage), speed: Math.round(this.speed), area: this.area, ended: true });
-  }
-}
-
-const initial: Snapshot = { distance: 0, score: 0, battery: 100, damage: 0, speed: 150, area: 'ফার্মগেট', ended: false };
+const INITIAL_STATUS: SceneStatus = { speed: 0, maxSpeed: 0, score: 0, elapsedSeconds: 0, steering: 0, hornFlash: false, boostActive: false, distance: 0, finished: false, caught: false, pursuitActive: false, currentDistrict: 'ফার্মগেট', roadX: 0, battery: 100, charging: false, damage: 0, batteryEmpty: false, totalDamageCost: 0, collisionCount: 0, damageBreakdown: { car: { hits: 0, cost: 0 }, bus: { hits: 0, cost: 0 }, motorcycle: { hits: 0, cost: 0 }, cng: { hits: 0, cost: 0 }, auto: { hits: 0, cost: 0 }, rickshaw: { hits: 0, cost: 0 }, pedestrian: { hits: 0, cost: 0 } } };
 
 export default function App() {
-  const host = useRef<HTMLDivElement>(null);
-  const game = useRef<Phaser.Game | null>(null);
-  const [hud, setHud] = useState(initial);
-  const [started, setStarted] = useState(false);
-  const [touchReady, setTouchReady] = useState(false);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<DrivingSceneInstance | null>(null);
+  const [view, setView] = useState<ViewState>('ready');
+  const [cameraMode, setCameraMode] = useState<CameraMode>('chase');
+  const [sceneMounted, setSceneMounted] = useState(false);
+  const [status, setStatus] = useState<SceneStatus>(INITIAL_STATUS);
+  const [error, setError] = useState('');
+
+  const cameraOrder: CameraMode[] = ['chase', 'elevated', 'close', 'side'];
+  const cameraLabels: Record<CameraMode, string> = { chase: 'পেছনের ভিউ', elevated: 'উঁচু ভিউ', close: 'কাছের ভিউ', side: 'পাশের ভিউ' };
+  const cycleCamera = useCallback(() => {
+    setCameraMode(current => {
+      const next = cameraOrder[(cameraOrder.indexOf(current) + 1) % cameraOrder.length];
+      sceneRef.current?.setCameraMode(next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
-    if (!started || !host.current) return;
-    const scene = new RoadScene(setHud);
-    game.current = new Phaser.Game({
-      type: Phaser.AUTO, parent: host.current, width: 390, height: 690,
-      backgroundColor: '#31584a', scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-      physics: { default: 'arcade', arcade: { debug: false } },
-      scene, render: { antialias: true, pixelArt: false },
-    });
-    setTouchReady(true);
-    return () => { game.current?.destroy(true); game.current = null; setTouchReady(false); };
-  }, [started]);
+    if (!sceneMounted || !hostRef.current || sceneRef.current) return;
+    let cancelled = false;
+    let lastPublish = 0;
 
-  const control = (key: 'left'|'right'|'forward'|'reverse', down: boolean) => {
-    const scene = game.current?.scene.getScene('road') as RoadScene | undefined;
-    scene?.setTouch(key, down);
+    // Keep the large Three.js driving engine out of the initial page bundle.
+    // It is fetched only after the player chooses to start a run.
+    void import('./game/render/three/DrivingScene').then(({ DrivingScene }) => {
+      if (cancelled || !hostRef.current) return;
+      const scene = new DrivingScene(hostRef.current, (next) => {
+        const now = performance.now();
+        const terminalState = next.caught || next.batteryEmpty || next.finished;
+        if (now - lastPublish > 120 || terminalState) {
+          setStatus(next);
+          if (next.caught || next.batteryEmpty) setView('gameover');
+          else if (next.finished) setView('victory');
+          lastPublish = now;
+        }
+      });
+      if (cancelled) {
+        scene.dispose();
+        return;
+      }
+      sceneRef.current = scene;
+      setView('running');
+    }).catch((cause: unknown) => {
+      if (cancelled) return;
+      const message = cause instanceof Error ? cause.message : 'WebGL চালু করা যায়নি';
+      setError(message);
+      setSceneMounted(false);
+      setView('error');
+    });
+
+    return () => {
+      cancelled = true;
+      sceneRef.current?.dispose();
+      sceneRef.current = null;
+    };
+  }, [sceneMounted]);
+
+  useEffect(() => {
+    sceneRef.current?.setCameraMode(cameraMode);
+  }, [cameraMode, sceneMounted]);
+
+  useEffect(() => {
+    if (view === 'paused' || view === 'victory' || view === 'gameover') sceneRef.current?.pause();
+    if (view === 'running') sceneRef.current?.resume();
+  }, [view]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && view === 'running') setView('paused');
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [view]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === 'escape' && view === 'running') setView('paused');
+      else if (event.key.toLowerCase() === 'escape' && view === 'paused') setView('running');
+      else if (event.key.toLowerCase() === 'c' && view === 'running') cycleCamera();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [view, cycleCamera]);
+
+  const start = useCallback(() => {
+    setError('');
+    setCameraMode('chase');
+    sceneRef.current?.setCameraMode('chase');
+    setSceneMounted(true);
+    setView('loading');
+  }, []);
+
+  const resetGame = useCallback(() => {
+    sceneRef.current?.dispose();
+    sceneRef.current = null;
+    setSceneMounted(false);
+    setCameraMode('chase');
+    setStatus({ ...INITIAL_STATUS, damageBreakdown: { car: { hits: 0, cost: 0 }, bus: { hits: 0, cost: 0 }, motorcycle: { hits: 0, cost: 0 }, cng: { hits: 0, cost: 0 }, auto: { hits: 0, cost: 0 }, rickshaw: { hits: 0, cost: 0 }, pedestrian: { hits: 0, cost: 0 } } });
+    setError('');
+    setView('ready');
+  }, []);
+
+  const setTouch = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'brake' | 'boost', pressed: boolean) => {
+    sceneRef.current?.setTouch(key, pressed);
   };
 
-  const restart = () => { setHud(initial); setStarted(false); window.setTimeout(() => setStarted(true), 30); };
-
-  return <main className="shell">
-    <header className="topbar"><div><span className="eyebrow">ঢাকার রাস্তায় টিকে থাকুন</span><h1>নেতার রাস্তা</h1></div><span className="live-dot">● SURVIVAL</span></header>
-    {!started ? <section className="intro">
-      <div className="badge">2D RICKSHAW SURVIVAL</div><div className="hero-rickshaw">🛺</div>
-      <h2>রাস্তা আপনার,<br/>সিদ্ধান্তও আপনার।</h2>
-      <p>ফার্মগেট থেকে শাহবাগ, তারপর ধানমন্ডি—ট্রাফিক সামলে যতদূর পারেন এগিয়ে যান।</p>
-      <button className="primary" onClick={() => { setHud(initial); setStarted(true); }}>খেলা শুরু করুন <span>→</span></button>
-      <small>কীবোর্ড: ← → চালনা · ↑ গতি · ↓ রিভার্স</small>
-    </section> : <>
-      <section className="stats">
-        <div><small>দূরত্ব</small><b>{hud.distance} মি.</b></div><div><small>স্কোর</small><b>৳ {hud.score} BDT</b></div>
-        <div><small>ব্যাটারি</small><b>{hud.battery}%</b><i><em style={{width: hud.battery+'%'}} /></i></div>
-      </section>
-      <div className="game-frame"><div ref={host} className="game-host" />
-        <div className="area-tag">{hud.area}</div>
-        {hud.ended && <div className="game-over"><span>RUN OVER</span><h2>খেলা শেষ!</h2><p>সর্বোচ্চ দূরত্ব: {hud.distance} মিটার</p><p>মোট স্কোর: ৳ {hud.score} BDT</p><button className="primary" onClick={restart}>আবার খেলুন</button></div>}
+  const bindHold = (key: 'left' | 'right' | 'accelerate' | 'reverse' | 'brake' | 'boost') => ({
+    onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      setTouch(key, true);
+      try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Touch input remains active even if capture is unavailable. */ }
+    },
+    onPointerUp: () => setTouch(key, false),
+    onPointerCancel: () => setTouch(key, false),
+    onLostPointerCapture: () => setTouch(key, false),
+  });
+  const damageRows = [
+    { key: 'car', label: 'প্রাইভেট কার' },
+    { key: 'bus', label: 'বাস' },
+    { key: 'motorcycle', label: 'মোটরসাইকেল' },
+    { key: 'cng', label: 'সিএনজি' },
+    { key: 'auto', label: 'ব্যাটারিচালিত অটো' },
+    { key: 'rickshaw', label: 'প্যাডেল রিকশা' },
+    { key: 'pedestrian', label: 'পথচারী' },
+  ] as const;
+  const damageSummary = (
+    <section className="damage-summary" aria-label="মোট ক্ষতির হিসাব">
+      <div className="damage-total"><span>সর্বমোট ক্ষতি</span><strong>৳ {status.totalDamageCost.toLocaleString('bn-BD')}</strong></div>
+      <p>মোট সংঘর্ষ: {status.collisionCount.toLocaleString('bn-BD')} বার</p>
+      <div className="damage-breakdown">
+        {damageRows.map(row => {
+          const item = status.damageBreakdown[row.key];
+          return <div className="damage-row" key={row.key}><span>{row.label} · {item.hits.toLocaleString('bn-BD')} বার</span><strong>৳ {item.cost.toLocaleString('bn-BD')}</strong></div>;
+        })}
       </div>
-      <section className="game-meta"><span>গতি {hud.speed}</span><span>ক্ষতি {hud.damage}%</span><span>{hud.battery <= 15 ? 'চার্জ কম!' : 'সাবধানে চালান'}</span></section>
-      {touchReady && !hud.ended && <section className="controls">
-        <div className="steer"><button onPointerDown={()=>control('left',true)} onPointerUp={()=>control('left',false)} onPointerLeave={()=>control('left',false)}>←</button><button onPointerDown={()=>control('right',true)} onPointerUp={()=>control('right',false)} onPointerLeave={()=>control('right',false)}>→</button></div>
-        <div className="drive"><button onPointerDown={()=>control('reverse',true)} onPointerUp={()=>control('reverse',false)} onPointerLeave={()=>control('reverse',false)}>REV</button><button className="accelerate" onPointerDown={()=>control('forward',true)} onPointerUp={()=>control('forward',false)} onPointerLeave={()=>control('forward',false)}>GO</button></div>
-      </section>}
-    </>}
-    <footer>একটি কাল্পনিক আর্কেড গেম · ভার্চুয়াল BDT-এর কোনো বাস্তব আর্থিক মূল্য নেই</footer>
-  </main>;
+    </section>
+  );
+
+  return (
+    <main className="app-shell">
+      <div className="scene-viewport" ref={hostRef} aria-label="নেতার রাস্তা 3D ড্রাইভিং দৃশ্য">
+        {view === 'ready' && (
+          <div className="scene-cover">
+            <div className="cover-icon" aria-hidden="true">🛺</div>
+            <p className="cover-kicker">THIRD-PERSON DRIVING</p>
+            <h1>নেতার রাস্তা</h1>
+            <p>ঢাকার পথে আপনার নিজের ব্যাটারিচালিত অটো নিয়ে ফিনিশ লাইনের দিকে এগিয়ে যান।</p>
+            <div className="ready-objective"><strong>আপনার লক্ষ্য</strong><span>ট্রাফিক এড়িয়ে ১,২০০ মিটার দূরের ফিনিশ লাইনে পৌঁছান। ব্যাটারি কমে গেলে চার্জিং স্টেশনে যান।</span></div>
+            <div className="ready-controls"><span>← → দিক নিয়ন্ত্রণ</span><span>↑ চলুন · X ব্রেক</span><span>↓ পিছনে · Shift টান</span><span>Space হর্ন · Esc বিরতি</span></div>
+            <button className="primary-button" onClick={start}>ড্রাইভিং শুরু করুন <span>↗</span></button>
+            <span className="cover-hint">কীবোর্ড: ← → দিক · ↑ চলুন · X ব্রেক · ↓ পিছনে · Shift টান · Space হর্ন</span>
+          </div>
+        )}
+        {view === 'loading' && (
+          <div className="scene-cover modal-cover loading-cover" role="status" aria-live="polite">
+            <div className="cover-icon" aria-hidden="true">🛺</div>
+            <p className="cover-kicker">CITY ENGINE STARTING</p>
+            <h2>রাস্তা তৈরি হচ্ছে…</h2>
+            <p>ঢাকার পথে আপনার যাত্রার প্রস্তুতি চলছে।</p>
+            <div className="loading-track"><i /></div>
+          </div>
+        )}
+        {view === 'gameover' && (
+          <div className="scene-cover modal-cover">
+            <div className="cover-icon" aria-hidden="true">😵</div>
+            <p className="cover-kicker">CHASE ENDED</p>
+            <h2>{status.batteryEmpty ? 'ব্যাটারি শেষ!' : 'ধরা পড়ে গেছেন!'}</h2>
+            <p>{status.batteryEmpty ? 'চার্জিং স্টেশনে না পৌঁছানোর কারণে গাড়ি থেমে গেছে।' : 'পেছনের দল আপনাকে ধরে ফেলেছে। পরেরবার BOOST ব্যবহার করে দূরত্ব বাড়ান।'}</p>
+            <div className="finish-stats"><div><span>স্কোর</span><strong>{status.score.toLocaleString('bn-BD')}</strong></div><div><span>দূরত্ব</span><strong>{status.distance.toLocaleString('bn-BD')} মি</strong></div><div><span>সর্বোচ্চ গতি</span><strong>{status.maxSpeed.toLocaleString('bn-BD')} km/h</strong></div><div><span>সময়</span><strong>{Math.floor(status.elapsedSeconds / 60).toLocaleString('bn-BD')}:{String(status.elapsedSeconds % 60).padStart(2,'0')}</strong></div></div>
+            {damageSummary}
+            <button className="primary-button" onClick={resetGame}>আবার খেলুন</button>
+          </div>
+        )}
+        {view === 'victory' && (
+          <div className="scene-cover modal-cover">
+            <div className="cover-icon" aria-hidden="true">🏁</div>
+            <p className="cover-kicker">ROUTE COMPLETE</p>
+            <h2>অভিনন্দন! ফিনিশ লাইন পার হয়েছেন</h2>
+            <p>আপনার Route Run সম্পন্ন হয়েছে।</p>
+            <div className="finish-stats"><div><span>মোট স্কোর</span><strong>{status.score.toLocaleString('bn-BD')}</strong></div><div><span>দূরত্ব</span><strong>{status.distance.toLocaleString('bn-BD')} মি</strong></div><div><span>সর্বোচ্চ গতি</span><strong>{status.maxSpeed.toLocaleString('bn-BD')} km/h</strong></div><div><span>সময়</span><strong>{Math.floor(status.elapsedSeconds / 60).toLocaleString('bn-BD')}:{String(status.elapsedSeconds % 60).padStart(2,'0')}</strong></div></div>
+            {damageSummary}
+            <button className="primary-button" onClick={resetGame}>আবার খেলুন</button>
+          </div>
+        )}
+        {view === 'paused' && (
+          <div className="scene-cover modal-cover pause-cover">
+            <div className="cover-icon" aria-hidden="true">⏸️</div>
+            <p className="cover-kicker">PAUSED</p>
+            <h2>বিরতি</h2>
+            <p>গেম থামানো আছে। প্রস্তুত হলে আবার চালু করুন।</p>
+            <div className="pause-actions">
+              <button className="primary-button" onClick={() => setView('running')}>▶ আবার চালু করুন</button>
+              <button className="secondary-button" onClick={resetGame}>হোমে ফিরে যান</button>
+            </div>
+          </div>
+        )}
+        {view === 'error' && (
+          <div className="scene-cover modal-cover error-cover">
+            <p className="cover-kicker">GRAPHICS ERROR</p>
+            <h2>3D চালু করা যায়নি</h2>
+            <p>{error}</p>
+            <button className="primary-button" onClick={resetGame}>আবার চেষ্টা করুন</button>
+          </div>
+        )}
+      </div>
+
+      <header className="game-topbar">
+        <div className="game-brand">
+          <span className="brand-mark">ন</span>
+          <div><strong>নেতার রাস্তা</strong><small>3D ড্রাইভিং</small></div>
+        </div>
+        <div className="live-status" aria-live="polite">
+          <span className="status-dot" />
+          {view === 'running' ? 'চলছে' : view === 'paused' ? 'বিরতি' : view === 'victory' ? 'সম্পন্ন' : 'প্রস্তুত'}
+        </div>
+        {view === 'running' && <><button className="camera-button" onClick={cycleCamera} aria-label={'ক্যামেরা পরিবর্তন: ' + cameraLabels[cameraMode]} title={cameraLabels[cameraMode]}>ক্যামেরা <small>{cameraLabels[cameraMode]}</small></button><button className="pause-button" onClick={() => setView('paused')} aria-label="গেম বিরতি দিন">Ⅱ</button></>}
+        {view === 'paused' && <button className="pause-button" onClick={() => setView('running')} aria-label="গেম আবার চালু করুন">▶</button>}
+      </header>
+
+      {view === 'running' && (
+        <>
+          {status.pursuitActive && <div className="pursuit-alert" role="status">সতর্কতা: পেছনে ধাওয়া শুরু হয়েছে! টান দিয়ে দূরত্ব বাড়ান</div>}
+          <section className="game-hud" aria-label="গেমের অবস্থা">
+            <div className="hud-card speed-card">
+              <span>গতি</span>
+              <strong>{status.speed}<small> km/h*</small></strong>
+              <div className="metric-track"><i style={{ width: Math.min(100, status.speed / 180 * 100) + '%' }} /></div>
+            </div>
+            <div className="hud-card steering-card">
+              <span>দূরত্ব</span>
+              <strong>{status.distance}<small> m</small></strong>
+              <div className="metric-track"><i style={{ width: Math.min(100, status.distance / 1200 * 100) + '%' }} /></div>
+            </div>
+            <div className="hud-card battery-card" aria-label="ব্যাটারি অবস্থা">
+              <span>{status.charging ? 'চার্জ হচ্ছে' : 'ব্যাটারি'}</span>
+              <strong>{status.battery}<small>%</small></strong>
+              <div className="metric-track"><i style={{ width: status.battery + '%', background: status.battery < 20 ? '#e87862' : '#c6e58c' }} /></div>
+              <small className="battery-damage">যানবাহনের ক্ষতি {status.damage}% · মোট ক্ষতি ৳{status.totalDamageCost.toLocaleString('bn-BD')}</small>
+            </div>
+            <div className="hud-card route-map-card" aria-label="রোড গ্রাফ মিনিম্যাপ">
+              <span>রুট · {status.currentDistrict}</span>
+              <svg viewBox="0 0 120 180" role="img" aria-label="ফার্মগেট, শাহবাগ ও ধানমন্ডির সংযুক্ত রাস্তা" style={{ width: 64, height: 96, display: 'block', margin: '3px auto 0' }}>
+                {ROAD_EDGES.map(edge => {
+                  const from = ROAD_NODES.find(node => node.id === edge.from)!;
+                  const to = ROAD_NODES.find(node => node.id === edge.to)!;
+                  return <line key={edge.id} x1={60 + from.x * 2.6} y1={8 + from.distance * 0.13} x2={60 + to.x * 2.6} y2={8 + to.distance * 0.13} stroke={edge.choice === 0 ? '#e7e1d3' : '#b7a98d'} strokeWidth={edge.choice === 0 ? 3 : 2} strokeLinecap="round" />;
+                })}
+                {ROAD_NODES.filter(node => ['farmgate','shahbagh','dhanmondi','finish'].includes(node.id)).map(node => <circle key={node.id} cx={60 + node.x * 2.6} cy={8 + node.distance * 0.13} r="3" fill="#f0c76d" stroke="#263d36" strokeWidth="1" />)}
+                <circle cx={60 + status.roadX * 2.6} cy={8 + status.distance * 0.13} r="4.2" fill="#ff674f" stroke="#fff" strokeWidth="1.5" />
+              </svg>
+              <small style={{ display: 'block', textAlign: 'center' }}>লাইভ অবস্থান</small>
+            </div>
+          </section>
+
+          <div className="keyboard-hint" aria-label="কীবোর্ড নির্দেশনা">
+            <span><kbd>←</kbd><kbd>→</kbd> স্টিয়ারিং</span>
+            <span><kbd>↑</kbd> চলুন</span>
+            <span><kbd>X</kbd> ব্রেক</span>
+            <span><kbd>↓</kbd> পিছনে</span>
+            <span><kbd>Space</kbd> হর্ন</span>
+            <span><kbd>Shift</kbd> টান</span>
+            <span><kbd>Esc</kbd> বিরতি</span>
+          </div>
+
+          <section className="touch-controls" aria-label="ড্রাইভিং কন্ট্রোল">
+            <div className="control-cluster steering-controls" aria-label="দিক নিয়ন্ত্রণ">
+              <button className="direction-control" aria-label="বামে" {...bindHold('left')}>বামে</button>
+              <button className="direction-control" aria-label="ডানে" {...bindHold('right')}>ডানে</button>
+            </div>
+            <div className="control-cluster action-controls" aria-label="গতি নিয়ন্ত্রণ">
+              <button className="go-control" aria-label="চলুন" {...bindHold('accelerate')}>চলুন</button>
+              <button className="brake-control" aria-label="ব্রেক" {...bindHold('brake')}>ব্রেক</button>
+              <button className={'boost-control' + (status.boostActive ? ' is-active' : '')} aria-label="টান" {...bindHold('boost')}>টান</button>
+              <button className="reverse-control" aria-label="পিছনে" {...bindHold('reverse')}>পিছনে</button>
+            </div>
+          </section>
+          <p className="provisional-note">*প্রাথমিক টেস্ট গতি-স্কেল · ফিনিশ দূরত্ব পরীক্ষামূলক</p>
+        </>
+      )}
+    </main>
+  );
 }
