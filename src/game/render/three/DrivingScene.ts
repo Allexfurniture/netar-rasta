@@ -8,7 +8,7 @@ export type DamageCategory = 'car' | 'bus' | 'motorcycle' | 'cng' | 'auto' | 'ri
 export type DamageCategoryStats = Record<DamageCategory, { hits: number; cost: number }>;
 export type SceneStatus = { speed: number; maxSpeed: number; score: number; elapsedSeconds: number; steering: number; hornFlash: boolean; boostActive: boolean; distance: number; finished: boolean; caught: boolean; pursuitActive: boolean; currentDistrict: string; roadX: number; battery: number; charging: boolean; damage: number; batteryEmpty: boolean; totalDamageCost: number; collisionCount: number; damageBreakdown: DamageCategoryStats };
 type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
-type TrafficAgent = { kind: TrafficKind; group: THREE.Group; state: RoadAdvance; cruiseSpeed: number; currentSpeed: number; routeBias: -1 | 0 | 1; lane: number; halfWidth: number; halfLength: number; overlapping: boolean; knockedBack: boolean; knockbackVelocity: THREE.Vector3; knockbackTime: number };
+type TrafficAgent = { kind: TrafficKind; group: THREE.Group; state: RoadAdvance; cruiseSpeed: number; currentSpeed: number; routeBias: -1 | 0 | 1; lane: number; laneTarget: number; laneChangeCooldown: number; halfWidth: number; halfLength: number; overlapping: boolean; knockedBack: boolean; knockbackVelocity: THREE.Vector3; knockbackTime: number };
 type AnimatedPerson = { group: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftArm: THREE.Group; rightArm: THREE.Group; phase: number; stride: number };
 type MarketPerson = AnimatedPerson & { baseX: number; activity: 'serve' | 'walk'; phaseOffset: number };
 type PedestrianAgent = AnimatedPerson & { knockedBack: boolean; knockbackVelocity: THREE.Vector3; knockbackTime: number; side: -1 | 1; spawnIndex: number; walkPhase: number };
@@ -1074,7 +1074,7 @@ export class DrivingScene {
       const size = dimensions[spec.kind];
       const agent: TrafficAgent = {
         kind:spec.kind,group,state,cruiseSpeed:spec.speed,currentSpeed:spec.speed,
-        routeBias:spec.route,lane:spec.lane,halfWidth:size.halfWidth,halfLength:size.halfLength,overlapping:false,knockedBack:false,knockbackVelocity:new THREE.Vector3(),knockbackTime:0,
+        routeBias:spec.route,lane:spec.lane,laneTarget:spec.lane,laneChangeCooldown:0,halfWidth:size.halfWidth,halfLength:size.halfLength,overlapping:false,knockedBack:false,knockbackVelocity:new THREE.Vector3(),knockbackTime:0,
       };
       this.trafficAgents.push(agent);
       group.position.set(state.x + spec.lane,0,this.distance - state.distance);
@@ -1164,23 +1164,53 @@ export class DrivingScene {
   }
 
   private updateTraffic(dt: number) {
+    // Traffic decisions are computed from a stable snapshot before any agent moves.
+    // This avoids update-order advantages and keeps the small mobile traffic pool deterministic.
     const targetSpeeds = this.trafficAgents.map(agent => {
       if (agent.knockedBack) return 0;
+      agent.laneChangeCooldown = Math.max(0, agent.laneChangeCooldown - dt);
       let nearestGap = Number.POSITIVE_INFINITY;
       let leadSpeed = agent.cruiseSpeed;
       for (const other of this.trafficAgents) {
         if (other === agent || other.knockedBack) continue;
         const gap = other.state.distance - agent.state.distance;
         const lateralGap = Math.abs(other.state.x + other.lane - agent.state.x - agent.lane);
-        if (gap > 0 && gap < nearestGap && lateralGap < agent.halfWidth + other.halfWidth + 0.45) {
-          nearestGap = gap; leadSpeed = other.currentSpeed;
+        if (gap > 0 && gap < nearestGap && lateralGap < agent.halfWidth + other.halfWidth + 0.55) {
+          nearestGap = gap;
+          leadSpeed = other.currentSpeed;
         }
       }
-      if (nearestGap < agent.halfLength + 3.2) {
-        const safeSpeed = leadSpeed * Math.max(0.2, (nearestGap - agent.halfLength) / 3.2);
-        return Math.min(agent.cruiseSpeed, safeSpeed);
+
+      // Change to the adjacent lane only when the current lane is obstructed
+      // and there is a safe front/rear gap in the destination lane.
+      if (nearestGap < agent.halfLength + 7.5 && agent.laneChangeCooldown <= 0) {
+        const candidateLane = agent.laneTarget < 0 ? 1.55 : -1.55;
+        const destinationClear = this.trafficAgents.every(other => {
+          if (other === agent || other.knockedBack) return true;
+          const longitudinalGap = other.state.distance - agent.state.distance;
+          const occupiesDestination = Math.abs(other.laneTarget - candidateLane) < 0.72
+            || Math.abs(other.lane - candidateLane) < 0.72;
+          return !occupiesDestination || longitudinalGap < -10.5 || longitudinalGap > 17;
+        });
+        if (destinationClear) {
+          agent.laneTarget = candidateLane;
+          agent.laneChangeCooldown = 3.2 + (agent.kind === 'bike' ? 0.8 : 0);
+        } else {
+          agent.laneChangeCooldown = 0.65;
+        }
       }
-      return agent.cruiseSpeed;
+
+      let speed = agent.cruiseSpeed;
+      if (nearestGap < agent.halfLength + 4.2) {
+        const safeSpeed = leadSpeed * THREE.MathUtils.clamp(
+          (nearestGap - agent.halfLength - 0.6) / 3.6, 0.12, 1
+        );
+        speed = Math.min(speed, safeSpeed);
+      }
+      // Slow slightly while approaching a graph junction; route selection remains
+      // owned by RoadGraph, so this does not create illegal shortcut paths.
+      if (agent.state.edgeProgress > 0.82) speed *= 0.82;
+      return speed;
     });
 
     this.trafficAgents.forEach((agent,index) => {
@@ -1196,19 +1226,29 @@ export class DrivingScene {
           const spawnDistance = Math.min(this.prototypeRouteLength - 30, this.distance + 150 + index * 11);
           agent.state = advanceRoad(createRoadState(), spawnDistance, agent.routeBias);
           agent.currentSpeed = agent.cruiseSpeed;
-          agent.knockedBack = false; agent.overlapping = false;
+          agent.knockedBack = false;
+          agent.overlapping = false;
+          agent.lane = agent.laneTarget;
           agent.group.rotation.set(0, 0, 0);
           this.positionTrafficAgent(agent);
         }
         return;
       }
 
-      agent.currentSpeed = THREE.MathUtils.damp(agent.currentSpeed,targetSpeeds[index],2.8,dt);
-      agent.state = advanceRoad(agent.state,agent.currentSpeed * dt,agent.routeBias);
+      // Vehicle classes have different throttle/braking response, not just speed caps.
+      const response = agent.kind === 'bike' ? 3.8
+        : agent.kind === 'bus' ? 1.9
+        : agent.kind === 'rickshaw' ? 2.25
+        : agent.kind === 'cng' ? 2.7 : 3.1;
+      agent.currentSpeed = THREE.MathUtils.damp(agent.currentSpeed, targetSpeeds[index], response, dt);
+      agent.lane = THREE.MathUtils.damp(agent.lane, agent.laneTarget, agent.kind === 'bike' ? 2.8 : 2.1, dt);
+      agent.state = advanceRoad(agent.state, agent.currentSpeed * dt, agent.routeBias);
       if (agent.state.distance < this.distance - 52 || agent.state.distance > this.prototypeRouteLength - 18) {
         const spawnDistance = Math.min(this.prototypeRouteLength - 30,this.distance + 170 + index * 13);
         agent.state = advanceRoad(createRoadState(),spawnDistance,agent.routeBias);
-        agent.currentSpeed = agent.cruiseSpeed; agent.overlapping = false;
+        agent.currentSpeed = agent.cruiseSpeed;
+        agent.overlapping = false;
+        agent.lane = agent.laneTarget;
       }
       this.positionTrafficAgent(agent);
       const depth = Math.abs(agent.state.distance - this.distance);
