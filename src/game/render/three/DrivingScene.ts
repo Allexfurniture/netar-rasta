@@ -10,6 +10,7 @@ export type SceneStatus = { speed: number; maxSpeed: number; score: number; elap
 type TrafficKind = 'car' | 'cng' | 'bus' | 'bike' | 'auto' | 'rickshaw';
 type TrafficAgent = { kind: TrafficKind; group: THREE.Group; state: RoadAdvance; cruiseSpeed: number; currentSpeed: number; routeBias: -1 | 0 | 1; lane: number; halfWidth: number; halfLength: number; overlapping: boolean; knockedBack: boolean; knockbackVelocity: THREE.Vector3; knockbackTime: number };
 type AnimatedPerson = { group: THREE.Group; leftLeg: THREE.Group; rightLeg: THREE.Group; leftArm: THREE.Group; rightArm: THREE.Group; phase: number; stride: number };
+type MarketPerson = AnimatedPerson & { baseX: number; activity: 'serve' | 'walk'; phaseOffset: number };
 type PedestrianAgent = AnimatedPerson & { knockedBack: boolean; knockbackVelocity: THREE.Vector3; knockbackTime: number; side: -1 | 1; spawnIndex: number; walkPhase: number };
 
 export class DrivingScene {
@@ -31,6 +32,7 @@ export class DrivingScene {
   private readonly movingWorld: THREE.Object3D[] = [];
   private readonly trafficAgents: TrafficAgent[] = [];
   private readonly sidewalkPeople: AnimatedPerson[] = [];
+  private readonly marketPeople: MarketPerson[] = [];
   private readonly pedestrians: PedestrianAgent[] = [];
   private readonly chasers: AnimatedPerson[] = [];
   private readonly chargingStations: Array<{ group: THREE.Group; distance: number }> = [];
@@ -597,6 +599,7 @@ export class DrivingScene {
     this.buildChargingStations();
     this.buildDhakaStreetDetails();
     this.buildDhakaMarketProps();
+    this.buildMarketPeople();
     this.buildSidewalkCrowd();
     this.buildPursuitCrowd();
     this.buildRickshaw();
@@ -755,6 +758,33 @@ export class DrivingScene {
       stall.userData.environmentLod = true;
       stall.userData.lodVisible = true;
       this.scene.add(stall); this.movingWorld.push(stall);
+    }
+  }
+
+  private buildMarketPeople() {
+    // Vendors and shoppers give the tea stalls a readable everyday street rhythm.
+    // They remain simple articulated characters so the scene stays mobile-friendly.
+    for (let i = 0; i < 6; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const stallZ = -42 - i * 39;
+      const vendor = this.createAnimatedPerson([0x34775d, 0x9b493d, 0x3e6489][i % 3], i * 0.9, 1.8);
+      vendor.group.scale.setScalar(0.92);
+      vendor.group.position.set(side * 8.65, 0, stallZ - 0.65);
+      vendor.group.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+      this.scene.add(vendor.group);
+      this.movingWorld.push(vendor.group);
+      this.marketPeople.push({ ...vendor, baseX: side * 8.65, activity: 'serve', phaseOffset: i * 0.9 });
+
+      // Every other stall has a customer walking slowly along the pavement.
+      if (i % 2 === 0) {
+        const customer = this.createAnimatedPerson([0xc28a43, 0x526d83, 0x8a5b75][i % 3], i * 0.7 + 1, 2.1);
+        customer.group.scale.setScalar(0.9);
+        customer.group.position.set(side * 7.55, 0, stallZ + 1.45);
+        customer.group.rotation.y = side < 0 ? -Math.PI / 2 : Math.PI / 2;
+        this.scene.add(customer.group);
+        this.movingWorld.push(customer.group);
+        this.marketPeople.push({ ...customer, baseX: side * 7.55, activity: 'walk', phaseOffset: i * 0.7 });
+      }
     }
   }
 
@@ -1155,22 +1185,51 @@ export class DrivingScene {
 
   private createAnimatedPerson(shirtColor: number, phase: number, stride: number): AnimatedPerson {
     const group = new THREE.Group();
-    const shirt = this.material(shirtColor);
-    const skin = this.material(0xb97951);
-    const legs = this.material(0x343a3a);
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.55, 4, 7), shirt);
+    const shirt = this.material(shirtColor, 0.92);
+    const skin = this.material(0xb97951, 0.96);
+    const skinLight = this.material(0xd49a70, 0.92);
+    const trousers = this.material(0x303a3c, 0.96);
+    const shoe = this.material(0x252927, 0.98);
+    const hair = this.material(0x292622, 0.98);
+    const trim = this.material(0xe7d8bd, 0.9);
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.55, 5, 9), shirt);
     body.position.y = 1.05; group.add(body);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 10), skin);
-    head.position.set(0, 1.55, -0.02); group.add(head);
-    const makeLimb = (x: number, y: number, length: number, material: THREE.Material) => {
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.15, 9), skin);
+    neck.position.y = 1.42; group.add(neck);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 12), skin);
+    head.position.set(0, 1.62, -0.02); group.add(head);
+    const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.195, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.53), hair);
+    hairCap.position.set(0, 1.69, -0.035); group.add(hairCap);
+    const earGeometry = new THREE.SphereGeometry(0.045, 8, 7);
+    for (const side of [-1, 1]) {
+      const ear = new THREE.Mesh(earGeometry, skinLight);
+      ear.position.set(side * 0.185, 1.61, -0.02); group.add(ear);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.018, 7, 6), hair);
+      eye.position.set(side * 0.067, 1.65, -0.19); group.add(eye);
+    }
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 7), skinLight);
+    nose.scale.set(0.8, 0.8, 0.7); nose.position.set(0, 1.59, -0.205); group.add(nose);
+    // A small collar and shirt placket break up the otherwise plain torso.
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.055, 0.08), trim);
+    collar.position.set(0, 1.34, -0.195); group.add(collar);
+    const placket = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.32, 0.025), trim);
+    placket.position.set(0, 1.08, -0.218); group.add(placket);
+    const makeLimb = (x: number, y: number, length: number, material: THREE.Material, radius = 0.065) => {
       const pivot = new THREE.Group(); pivot.position.set(x, y, 0);
-      const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.075, length, 7), material);
+      const limb = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 1.12, length, 9), material);
       limb.position.y = -length / 2; pivot.add(limb); group.add(pivot); return pivot;
     };
-    const leftLeg = makeLimb(-0.12, 0.67, 0.58, legs);
-    const rightLeg = makeLimb(0.12, 0.67, 0.58, legs);
-    const leftArm = makeLimb(-0.28, 1.28, 0.58, skin);
-    const rightArm = makeLimb(0.28, 1.28, 0.58, skin);
+    const leftLeg = makeLimb(-0.12, 0.67, 0.58, trousers, 0.078);
+    const rightLeg = makeLimb(0.12, 0.67, 0.58, trousers, 0.078);
+    // Short sleeves plus exposed forearms give the crowd a more natural silhouette.
+    for (const side of [-1, 1]) {
+      const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.09, 0.28, 9), shirt);
+      sleeve.position.set(side * 0.29, 1.19, 0); sleeve.rotation.z = side * -0.16; group.add(sleeve);
+      const shoeMesh = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 0.28), shoe);
+      shoeMesh.position.set(side * 0.12, 0.055, -0.075); group.add(shoeMesh);
+    }
+    const leftArm = makeLimb(-0.3, 1.08, 0.48, skin, 0.055);
+    const rightArm = makeLimb(0.3, 1.08, 0.48, skin, 0.055);
     leftArm.rotation.z = -0.18; rightArm.rotation.z = 0.18;
     return { group, leftLeg, rightLeg, leftArm, rightArm, phase, stride };
   }
@@ -1478,6 +1537,20 @@ export class DrivingScene {
       person.group.position.x = person.side * sideWalk;
       person.group.position.z += Math.sin(person.walkPhase * 0.62) * 0.22 * dt;
       person.group.rotation.y = person.side < 0 ? Math.PI / 2 : -Math.PI / 2;
+    });
+    this.marketPeople.forEach(person => {
+      this.animatePerson(person, dt, false);
+      if (person.activity === 'serve') {
+        // Vendors make small repetitive serving gestures instead of freezing in place.
+        const reach = Math.sin(person.phase * 0.8 + person.phaseOffset) * 0.28;
+        person.rightArm.rotation.x = -0.72 + reach;
+        person.leftArm.rotation.x = -0.28 - reach * 0.35;
+        person.group.rotation.y = (person.baseX < 0 ? Math.PI / 2 : -Math.PI / 2)
+          + Math.sin(person.phase * 0.45 + person.phaseOffset) * 0.045;
+      } else {
+        person.group.position.x = person.baseX + Math.sin(person.phase * 0.45 + person.phaseOffset) * 0.42;
+        person.group.rotation.y = person.baseX < 0 ? -Math.PI / 2 : Math.PI / 2;
+      }
     });
     this.updatePursuit(dt);
     this.updateChargingAndBattery(dt);
