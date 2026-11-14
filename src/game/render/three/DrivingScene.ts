@@ -1207,6 +1207,21 @@ export class DrivingScene {
         );
         speed = Math.min(speed, safeSpeed);
       }
+
+      // Give roadside walkers a conservative clearance envelope. Pedestrians
+      // remain on the shoulder, but large vehicles brake early when passing close.
+      for (const person of this.pedestrians) {
+        if (person.knockedBack || !person.group.visible) continue;
+        const pedestrianDistance = this.distance - person.group.position.z;
+        const pedestrianGap = pedestrianDistance - agent.state.distance;
+        const lateralClearance = Math.abs(person.group.position.x - (agent.state.x + agent.laneTarget));
+        if (pedestrianGap > -1.5 && pedestrianGap < 8.5
+          && lateralClearance < agent.halfWidth + 1.2) {
+          const caution = pedestrianGap < 2.8 ? 0.18 : pedestrianGap < 5.5 ? 0.58 : 0.84;
+          speed = Math.min(speed, agent.cruiseSpeed * caution);
+        }
+      }
+
       // Slow slightly while approaching a graph junction; route selection remains
       // owned by RoadGraph, so this does not create illegal shortcut paths.
       if (agent.state.edgeProgress > 0.82) speed *= 0.82;
