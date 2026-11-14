@@ -86,7 +86,8 @@ export class DrivingScene {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // PCF is materially cheaper than PCFSoft on mobile GPUs.
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.setClearColor(0x9fc5c5);
     this.renderer.domElement.setAttribute('aria-label', 'থ্রিডি রিকশা ড্রাইভিং দৃশ্য');
     this.host.appendChild(this.renderer.domElement);
@@ -149,11 +150,20 @@ export class DrivingScene {
     const crossRoad = new THREE.Mesh(new THREE.PlaneGeometry(34, 13), this.material(0x464947, 0.98));
     crossRoad.rotation.x = -Math.PI / 2; crossRoad.position.set(0, 0.012, z);
     this.scene.add(crossRoad); this.movingWorld.push(crossRoad);
+    // Nine junction stop-line bars share one instanced draw call.
+    const junctionBars = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.48, 0.035, 5.2), this.material(0xf3ead4), 9,
+    );
+    const junctionMatrix = new THREE.Matrix4();
     for (let i = 0; i < 9; i++) {
-      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.035, 5.2), this.material(0xf3ead4));
-      stripe.position.set(-5.4 + i * 1.35, 0.045, z - 1.4);
-      this.scene.add(stripe); this.movingWorld.push(stripe);
+      junctionMatrix.makeTranslation(-5.4 + i * 1.35, 0.045, z - 1.4);
+      junctionBars.setMatrixAt(i, junctionMatrix);
     }
+    junctionBars.instanceMatrix.needsUpdate = true;
+    junctionBars.computeBoundingSphere();
+    junctionBars.castShadow = false;
+    junctionBars.receiveShadow = false;
+    this.scene.add(junctionBars); this.movingWorld.push(junctionBars);
     this.streetSign(district, -7.2, 4.8, z - 6, '#174f3d');
     // Signal poles and three signal lamps on both corners.
     for (const side of [-1, 1]) {
@@ -218,9 +228,12 @@ export class DrivingScene {
     const sun = new THREE.DirectionalLight(0xffe0ae, 3.2);
     sun.position.set(-22, 36, 20);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -32; sun.shadow.camera.right = 32;
-    sun.shadow.camera.top = 38; sun.shadow.camera.bottom = -38;
+    const mobileShadows = window.innerWidth < 700;
+    sun.shadow.mapSize.set(mobileShadows ? 512 : 1024, mobileShadows ? 512 : 1024);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 90;
+    sun.shadow.camera.left = -24; sun.shadow.camera.right = 24;
+    sun.shadow.camera.top = 30; sun.shadow.camera.bottom = -30;
     this.scene.add(sun);
 
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 360), this.material(0x78956b));
@@ -288,13 +301,21 @@ export class DrivingScene {
     laneDashes.userData.recycleDistance = 300;
     this.scene.add(laneDashes);
     this.movingWorld.push(laneDashes);
-    // Crosswalk and road-side paint add recognizable Dhaka street detail.
+    // Seven crosswalk bars become a single instanced draw call.
+    const crosswalk = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(13.8, 0.035, 0.42), this.material(0xe9e3d2), 7,
+    );
+    const crosswalkMatrix = new THREE.Matrix4();
     for (let i = 0; i < 7; i++) {
-      const stripe = new THREE.Mesh(new THREE.BoxGeometry(13.8, 0.035, 0.42), this.material(0xe9e3d2));
-      stripe.position.set(0, 0.035, -82 - i * 1.05);
-      this.scene.add(stripe);
-      this.movingWorld.push(stripe);
+      crosswalkMatrix.makeTranslation(0, 0.035, -82 - i * 1.05);
+      crosswalk.setMatrixAt(i, crosswalkMatrix);
     }
+    crosswalk.instanceMatrix.needsUpdate = true;
+    crosswalk.computeBoundingSphere();
+    crosswalk.castShadow = false;
+    crosswalk.receiveShadow = false;
+    this.scene.add(crosswalk);
+    this.movingWorld.push(crosswalk);
 
     const buildingLodStart = this.movingWorld.length;
     const palette = [0xe7b87d, 0xd98e72, 0x9db9a4, 0xe5d3a7, 0xc3a1c9, 0xd9c5a4];
@@ -389,6 +410,7 @@ export class DrivingScene {
     }
 
     // Street trees, utility poles, overhead cables and lamps.
+    const roadsideLodStart = this.movingWorld.length;
     for (let i = 0; i < 14; i++) {
       const side = i % 2 === 0 ? -1 : 1;
       const z = -12 - i * 17;
@@ -404,6 +426,7 @@ export class DrivingScene {
     }
 
     // A few colorful roadside stalls and parked two-wheelers break up the skyline.
+    const stallLodStart = this.movingWorld.length;
     for (let i = 0; i < 8; i++) {
       const side = i % 2 === 0 ? -1 : 1;
       const z = -30 - i * 35;
@@ -417,6 +440,16 @@ export class DrivingScene {
       this.scene.add(parkedWheel); this.movingWorld.push(parkedWheel);
     }
 
+
+    // Distant roadside props are culled and skip small-object shadow work.
+    for (const object of [...this.movingWorld.slice(roadsideLodStart), ...this.movingWorld.slice(stallLodStart)]) {
+      object.userData.environmentLod = true;
+      object.userData.lodVisible = true;
+      if (object instanceof THREE.Mesh) {
+        object.castShadow = false;
+        object.receiveShadow = false;
+      }
+    }
 
     // Repeating Dhaka-style junctions give the route a recognizable urban rhythm.
     this.buildJunctionSet(-70, 'ফার্মগেট', 0xd7b15e);
@@ -1263,7 +1296,7 @@ export class DrivingScene {
       object.position.z += travel;
       if (object.position.z > 14) object.position.z -= object.userData.recycleDistance ?? 228;
       if (object.userData.environmentLod) {
-        const shouldShow = Math.abs(object.position.z) < 155;
+        const shouldShow = Math.abs(object.position.z) < 145;
         if (object.userData.lodVisible !== shouldShow) {
           object.visible = shouldShow;
           object.userData.lodVisible = shouldShow;
