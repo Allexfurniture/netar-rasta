@@ -409,6 +409,53 @@ export class DrivingScene {
       }
       const drainPipe = this.box(0.045, 1.15, 0.045, 0x8b9288, x + width * 0.4, height - 2.1, z + 5.5);
       this.scene.add(drainPipe); this.movingWorld.push(drainPipe);
+
+      // Ground-floor shutter ribs, a projecting sign canopy and balcony planters
+      // add the layered, lived-in frontage common to Dhaka mixed-use buildings.
+      const shutterSlats = new THREE.InstancedMesh(
+        this.sharedBoxGeometry(width * 0.54, 0.055, 0.055),
+        this.material(0x9a9b91, 0.78),
+        7,
+      );
+      const shutterMatrix = new THREE.Matrix4();
+      for (let slat = 0; slat < 7; slat++) {
+        shutterMatrix.makeTranslation(
+          x - width * 0.12,
+          0.58 + slat * 0.115,
+          z + 5.57,
+        );
+        shutterSlats.setMatrixAt(slat, shutterMatrix);
+      }
+      shutterSlats.instanceMatrix.needsUpdate = true;
+      shutterSlats.computeBoundingSphere();
+      shutterSlats.castShadow = false;
+      shutterSlats.receiveShadow = false;
+      this.scene.add(shutterSlats); this.movingWorld.push(shutterSlats);
+
+      const signCanopy = this.box(width * 0.84, 0.1, 0.82, 0x6b6253, x, 3.36, z + 5.82);
+      this.scene.add(signCanopy); this.movingWorld.push(signCanopy);
+      const canopyEdge = this.box(width * 0.84, 0.08, 0.08, 0xe7c45d, x, 3.31, z + 6.23);
+      this.scene.add(canopyEdge); this.movingWorld.push(canopyEdge);
+
+      for (const planterSide of [-1, 1]) {
+        const planter = this.box(0.72, 0.22, 0.34, 0x8b7155, x + planterSide * 0.72, 2.0 + 2.65, z + 5.91);
+        this.scene.add(planter); this.movingWorld.push(planter);
+        const foliage = new THREE.Mesh(
+          new THREE.IcosahedronGeometry(0.24, 0),
+          this.material(0x54834f, 0.92),
+        );
+        foliage.position.set(x + planterSide * 0.72, 2.27 + 2.65, z + 5.91);
+        foliage.scale.set(1.45, 0.7, 0.72);
+        this.scene.add(foliage); this.movingWorld.push(foliage);
+      }
+
+      // Short roof parapets break the flat roof silhouette and hide rooftop equipment bases.
+      for (const edge of [-1, 1]) {
+        const parapet = this.box(0.16, 0.72, 10.7, 0x9a8e7b, x + edge * (width / 2), height + 0.46, z);
+        this.scene.add(parapet); this.movingWorld.push(parapet);
+      }
+      const frontParapet = this.box(width + 0.12, 0.62, 0.16, 0x9a8e7b, x, height + 0.42, z + 5.25);
+      this.scene.add(frontParapet); this.movingWorld.push(frontParapet);
     }
 
     // Tag the complete building assemblies for distance culling. Their facade detail
